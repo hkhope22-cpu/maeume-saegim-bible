@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = "maeume-saegim-ephesians-v1";
   const TEAM_SESSION_KEY = "maeume-saegim-team-session-v1";
-  const TEAM_PUBLIC_ORIGIN = "https://maeume-saegim-bible.vercel.app";
+  const TEAM_PUBLIC_ORIGIN = "https://bible-maeum.vercel.app";
   const TEAM_API_URL = `${location.hostname.endsWith("vercel.app") ? "" : TEAM_PUBLIC_ORIGIN}/api/team`;
   const CHAPTER_COUNTS = [23, 22, 21, 32, 33, 24];
   const BIBLE_BOOKS = [
