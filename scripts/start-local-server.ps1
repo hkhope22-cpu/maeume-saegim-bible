@@ -25,7 +25,7 @@ function Write-HttpResponse {
     [string]$ContentType,
     [bool]$HeadOnly = $false
   )
-  $headers = "HTTP/1.1 $StatusCode $StatusText`r`nContent-Type: $ContentType`r`nContent-Length: $($Body.Length)`r`nCache-Control: no-cache`r`nConnection: close`r`n`r`n"
+  $headers = "HTTP/1.1 $StatusCode $StatusText`r`nContent-Type: $ContentType`r`nContent-Length: $($Body.Length)`r`nCache-Control: no-cache`r`nX-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex`r`nConnection: close`r`n`r`n"
   $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
   $Stream.Write($headerBytes, 0, $headerBytes.Length)
   if (-not $HeadOnly -and $Body.Length) { $Stream.Write($Body, 0, $Body.Length) }

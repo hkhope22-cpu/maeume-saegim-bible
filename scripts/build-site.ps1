@@ -11,7 +11,7 @@ $clientRoot = Join-Path $distRoot "client"
 $serverRoot = Join-Path $distRoot "server"
 New-Item -ItemType Directory -Force -Path $clientRoot, $serverRoot | Out-Null
 
-foreach ($file in @("index.html", "app.js", "styles.css", "favicon.svg")) {
+foreach ($file in @("index.html", "app.js", "styles.css", "favicon.svg", "robots.txt")) {
   Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination (Join-Path $clientRoot $file)
 }
 if (Test-Path -LiteralPath (Join-Path $projectRoot "social-card.png")) {

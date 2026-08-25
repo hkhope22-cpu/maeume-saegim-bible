@@ -28,6 +28,7 @@
     verses: {},
     coreVerses: {},
     progress: {},
+    mistakes: {},
     history: [],
     settings: { dailyGoal: 5 },
     weeklyPlan: { chapter: 2, start: 10, end: 18, refs: [] },
@@ -46,7 +47,8 @@
   let state = loadState();
   let activeView = "home";
   let libraryChapter = "all";
-  let selectedRange = new Set([1, 2, 3, 4, 5, 6]);
+  let selectedRange = new Set([Number(state.weeklyPlan?.chapter || 2)]);
+  let practiceScope = "weekly";
   let preferredMode = "initial";
   let importScope = "ephesians";
   let game = null;
@@ -81,7 +83,7 @@
         ...structuredClone(defaultState), ...saved,
         settings: { ...defaultState.settings, ...(saved.settings || {}) },
         verses: saved.verses || {}, coreVerses: saved.coreVerses || {},
-        progress: saved.progress || {}, history: saved.history || [],
+        progress: saved.progress || {}, mistakes: saved.mistakes || {}, history: saved.history || [],
         weeklyPlan: { ...defaultState.weeklyPlan, ...(saved.weeklyPlan || {}) },
         cumulativeRefs: saved.cumulativeRefs || [], certifications: saved.certifications || {},
         reminders: { ...defaultState.reminders, ...(saved.reminders || {}), lastSent: saved.reminders?.lastSent || {} },
@@ -162,6 +164,20 @@
   }
 
   function allEntries() { return [...coreEntries(), ...verseEntries()]; }
+
+  function entryForRef(ref) {
+    const regular = allEntries().find((entry) => entry.ref === ref);
+    if (regular) return regular;
+    const parsed = parseBibleRef(ref);
+    return parsed ? bibleEntry(parsed.book, parsed.chapter, parsed.verse) : null;
+  }
+
+  function mistakeEntries() {
+    return Object.entries(state.mistakes || {})
+      .map(([ref, note]) => ({ entry: entryForRef(ref), note }))
+      .filter((item) => item.entry)
+      .sort((a, b) => (b.note.count || 0) - (a.note.count || 0) || String(b.note.lastMistakeAt || "").localeCompare(String(a.note.lastMistakeAt || "")));
+  }
 
   function weeklyRefs(plan = state.weeklyPlan) {
     if (Array.isArray(plan.refs) && plan.refs.length) {
@@ -270,6 +286,7 @@
     renderStats();
     renderBibleView();
     renderLibrary();
+    renderMistakes();
     renderProgress();
     renderRange();
     renderImportUI();
@@ -375,10 +392,30 @@
     } else {
       state.history.slice(-8).reverse().forEach((item) => {
         const row = el("div", "recent-item");
-        row.innerHTML = `<strong>${formatRef(item.ref)}</strong><span>${MODE_NAMES[item.mode] || "암송 연습"} · ${item.date}</span><em>${item.correct ? "+100" : "+40"}</em>`;
+        row.innerHTML = `<strong>${formatRef(item.ref)}</strong><span>${MODE_NAMES[item.mode] || "암송 연습"} · ${item.date}</span><em>+${item.points ?? (item.correct ? 100 : 40)}</em>`;
         recent.append(row);
       });
     }
+  }
+
+  function renderMistakes() {
+    const items = mistakeEntries();
+    $("#mistakeNavCount").textContent = items.length;
+    $("#mistakeTotalCount").textContent = items.length;
+    $("#reviewAllMistakesBtn").disabled = items.length === 0;
+    const list = $("#mistakeList");
+    list.innerHTML = "";
+    if (!items.length) {
+      list.innerHTML = `<div class="empty-state"><span>✓</span><h3>복습할 오답이 없어요</h3><p>실제 글자가 다르게 입력된 구절이 생기면 여기에 자동으로 모입니다.</p></div>`;
+      return;
+    }
+    items.forEach(({ entry, note }) => {
+      const row = el("article", "mistake-item");
+      const lastAnswer = note.lastActual || "기록 없음";
+      row.innerHTML = `<div class="mistake-ref"><span class="soft-badge">${note.count || 1}회 틀림</span><h3>${formatRef(entry.ref)}</h3><p class="mistake-answer"></p></div><div class="mistake-status"><span>연속 정확</span><strong>${note.correctStreak || 0} / 2</strong><div class="mini-progress"><i style="width:${Math.min(100, (note.correctStreak || 0) * 50)}%"></i></div></div><button class="outline-button mistake-play" data-mistake-ref="${entry.ref}">이 구절 반복</button>`;
+      $(".mistake-answer", row).textContent = `최근 내 답: ${lastAnswer}`;
+      list.append(row);
+    });
   }
 
   function renderRange() {
@@ -394,10 +431,50 @@
       button.innerHTML = `<strong>${chapter}장</strong><small>${count ? `${count}절 저장됨` : "본문 없음"}</small>`;
       wrap.append(button);
     });
+    const weekly = weeklyEntries();
+    const cumulative = cumulativeEntries();
+    if (practiceScope === "weekly" && !weekly.length) practiceScope = "custom";
+    if (practiceScope === "cumulative" && !cumulative.length) practiceScope = "custom";
+    $$("#practiceScopeGrid [data-practice-scope]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.practiceScope === practiceScope);
+      button.disabled = button.dataset.practiceScope === "cumulative" && !cumulative.length;
+    });
+    $("#scopeWeeklyLabel").textContent = weeklyLabel();
+    $("#scopeCumulativeLabel").textContent = cumulative.length ? `${cumulative.length}절` : "아직 없음";
+    $("#customRangePanel").hidden = practiceScope !== "custom";
+
     const total = entries.filter((v) => selectedRange.has(v.chapter)).length;
     const availableSelected = [...selectedRange].filter((chapter) => entries.some((v) => v.chapter === chapter)).sort();
-    $("#rangeSummary").textContent = total ? `${availableSelected.join(" · ")}장 중 ${total}절에서 골라 연습해요.` : "연습할 장을 하나 이상 골라주세요.";
-    $("#startRangeBtn").disabled = total === 0;
+    const summaries = {
+      weekly: `${weeklyLabel()} · 입력한 새 진도 ${weekly.length}절을 모두 연습합니다.`,
+      cumulative: cumulative.length ? `이전 암송분 ${cumulative.length}절을 처음부터 누적해 연습합니다.` : "누적된 이전 진도가 아직 없어요.",
+      custom: total ? `에베소서 ${availableSelected.join(" · ")}장 중 오늘 ${Math.min(Number(state.settings.dailyGoal || 5), total)}절을 골라 연습합니다.` : "연습할 장을 하나 이상 골라주세요.",
+      bible: "성경 전체 메뉴로 이동해 성경·장·시작 절·마지막 절을 선택합니다.",
+    };
+    $("#rangeSummary").textContent = summaries[practiceScope];
+    $("#startRangeBtn").textContent = practiceScope === "bible" ? "성경 전체에서 범위 고르기" : "선택한 진도로 시작";
+    $("#startRangeBtn").disabled = practiceScope === "weekly" ? !weekly.length : practiceScope === "cumulative" ? !cumulative.length : practiceScope === "custom" ? total === 0 : false;
+  }
+
+  function openPracticeRange(mode = preferredMode) {
+    preferredMode = mode;
+    practiceScope = weeklyEntries().length ? "weekly" : "custom";
+    renderRange();
+    openModal("#rangeModal");
+  }
+
+  function startSelectedPracticeRange() {
+    if (practiceScope === "bible") {
+      closeModal($("#rangeModal"));
+      switchView("bible");
+      return;
+    }
+    let queue = null;
+    let sessionType = "free";
+    if (practiceScope === "weekly") { queue = weeklyEntries(); sessionType = "weekly"; }
+    if (practiceScope === "cumulative") { queue = cumulativeEntries(); sessionType = "cumulative"; }
+    closeModal($("#rangeModal"));
+    startGame(preferredMode, selectedRange, null, queue, sessionType);
   }
 
   function renderBibleSourceState() {
@@ -640,6 +717,7 @@
       home: ["오늘, 말씀 곁에", "평안한 하루예요"],
       bible: ["WHOLE BIBLE · 66 BOOKS", "오늘 새길 말씀을 골라보세요"],
       library: ["MY VERSES · EPHESIANS", "말씀을 꺼내보세요"],
+      mistakes: ["REVIEW NOTE", "틀린 부분을 다시 단단히 새겨요"],
       progress: ["SMALL STEPS", "꾸준히 잘 걷고 있어요"],
     };
     $("#pageEyebrow").textContent = labels[view][0];
@@ -834,6 +912,13 @@
     }
   }
 
+  function startMistakeReview(ref = null) {
+    const items = mistakeEntries().filter((item) => !ref || item.entry.ref === ref);
+    if (!items.length) return showToast("복습할 오답이 없어요.");
+    const queue = items.flatMap(({ entry }) => [{ ...entry }, { ...entry }]);
+    startGame(preferredMode, selectedRange, null, queue, "mistakes");
+  }
+
   function currentVerse() { return game.queue[game.index]; }
 
   function renderChallenge() {
@@ -841,6 +926,7 @@
     game.hintUsed = false;
     game.hintLevel = 0;
     game.selectedTiles = [];
+    game.blankWords = [];
     const verse = currentVerse();
     $("#gameModeLabel").textContent = MODE_NAMES[game.mode];
     $("#gameVerseRef").textContent = formatRef(verse.ref);
@@ -872,11 +958,13 @@
     candidates.sort(() => Math.random() - .5);
     const hidden = new Set(candidates.slice(0, blankCount).map((v) => v.i));
     if (!hidden.size) hidden.add(Math.floor(words.length / 2));
+    game.blankWords = [...words];
     const verseLine = el("div", "blank-verse");
     words.forEach((word, index) => {
       if (hidden.has(index)) {
         const input = el("input", `blank-input${normalize(word).length > 4 ? " wide" : ""}`);
         input.dataset.answer = word;
+        input.dataset.wordIndex = index;
         input.setAttribute("aria-label", `${index + 1}번째 빈칸`);
         input.autocomplete = "off";
         verseLine.append(input);
@@ -947,22 +1035,26 @@
 
   function checkChallenge() {
     if (game.checked) return nextChallenge();
-    let correct = false;
+    const expected = currentVerse().text;
+    let actual = "";
     if (game.mode === "blank") {
       const inputs = $$(".blank-input", $("#challengeArea"));
       if (inputs.some((input) => !input.value.trim())) return showToast("빈칸을 모두 채워주세요.");
-      correct = inputs.every((input) => normalize(input.value) === normalize(input.dataset.answer));
+      const actualWords = [...game.blankWords];
+      inputs.forEach((input) => {
+        actualWords[Number(input.dataset.wordIndex)] = input.value;
+        input.classList.toggle("incorrect", normalize(input.value) !== normalize(input.dataset.answer));
+      });
+      actual = actualWords.join(" ");
     } else if (game.mode === "initial") {
       const input = $(".recall-input");
       if (!input.value.trim()) return showToast("기억나는 말씀을 먼저 적어주세요.");
-      const answer = normalize(input.dataset.answer);
-      const value = normalize(input.value);
-      correct = value === answer || similarity(value, answer) >= .92;
+      actual = input.value;
     } else {
       if (game.selectedTiles.length !== game.orderAnswer.length) return showToast("말씀 조각을 모두 골라주세요.");
-      correct = game.selectedTiles.every((tile, index) => tile.chunk === game.orderAnswer[index]);
+      actual = game.selectedTiles.map((tile) => tile.chunk).join(" ");
     }
-    finishAnswer(correct);
+    finishAnswer(gradeRecitation(actual, expected));
   }
 
   function similarity(a, b) {
@@ -981,25 +1073,126 @@
     return dp[shorter.length] / longer.length;
   }
 
-  function finishAnswer(correct) {
+  function gradeRecitation(actual, expected) {
+    const normalizedActual = normalize(actual);
+    const normalizedExpected = normalize(expected);
+    const exact = normalizedActual === normalizedExpected;
+    const ratio = exact ? 1 : similarity(normalizedActual, normalizedExpected);
+    return { actual, expected, normalizedActual, normalizedExpected, exact, ratio, near: !exact && ratio >= .96 };
+  }
+
+  function buildCharacterDiff(grading) {
+    const expected = [...grading.normalizedExpected];
+    const actual = [...grading.normalizedActual];
+    const dp = Array.from({ length: expected.length + 1 }, () => new Uint16Array(actual.length + 1));
+    for (let i = expected.length - 1; i >= 0; i -= 1) {
+      for (let j = actual.length - 1; j >= 0; j -= 1) {
+        dp[i][j] = expected[i] === actual[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const expectedOps = [];
+    const actualOps = [];
+    let i = 0;
+    let j = 0;
+    while (i < expected.length || j < actual.length) {
+      if (i < expected.length && j < actual.length && expected[i] === actual[j]) {
+        expectedOps.push({ char: expected[i], type: "same" });
+        actualOps.push({ char: actual[j], type: "same" });
+        i += 1; j += 1;
+      } else if (i < expected.length && (j >= actual.length || dp[i + 1][j] >= dp[i][j + 1])) {
+        expectedOps.push({ char: expected[i], type: "missing" });
+        i += 1;
+      } else if (j < actual.length) {
+        actualOps.push({ char: actual[j], type: "extra" });
+        j += 1;
+      }
+    }
+    return { expectedOps, actualOps };
+  }
+
+  function appendDiffLine(container, label, operations, highlightType, emptyText = "입력 없음") {
+    const row = el("div", "answer-diff-row");
+    row.append(el("strong", "", label));
+    const text = el("span", "answer-diff-text");
+    if (!operations.length) text.textContent = emptyText;
+    operations.forEach((operation) => {
+      if (operation.type === highlightType) text.append(el("mark", operation.type, operation.char));
+      else text.append(document.createTextNode(operation.char));
+    });
+    row.append(text);
+    container.append(row);
+  }
+
+  function renderAnswerFeedback(feedback, grading, points, mistakeStatus) {
+    feedback.innerHTML = "";
+    const title = el("strong", "feedback-title");
+    if (grading.exact) {
+      title.textContent = `정확해요. ${points}점을 얻었습니다.`;
+      feedback.append(title);
+      if (mistakeStatus?.cleared) feedback.append(el("p", "feedback-note", "두 번 연속 정확해서 오답노트에서 완료했어요."));
+      else if (mistakeStatus?.hinted) feedback.append(el("p", "feedback-note", "정확하지만 힌트를 사용해 오답노트 연속 기록에는 포함하지 않았어요."));
+      else if (mistakeStatus?.streak) feedback.append(el("p", "feedback-note", `오답노트 완료까지 힌트 없이 ${2 - mistakeStatus.streak}번 더 정확하면 돼요.`));
+      return;
+    }
+    title.textContent = grading.near ? `거의 정확해요. 다른 글자를 오답노트에 저장했습니다. +${points}점` : `다른 글자가 있어요. 오답노트에 저장했습니다. +${points}점`;
+    feedback.append(title, el("p", "feedback-note", "띄어쓰기와 문장부호는 이미 제외했습니다. 색칠된 실제 글자만 다시 소리 내어 보세요."));
+    const fullAnswer = el("div", "answer-full");
+    const expectedLine = el("p"); expectedLine.append(el("strong", "", "정답 "), document.createTextNode(grading.expected));
+    const actualLine = el("p"); actualLine.append(el("strong", "", "내 답 "), document.createTextNode(grading.actual || "입력 없음"));
+    fullAnswer.append(expectedLine, actualLine);
+    feedback.append(fullAnswer);
+    const diff = buildCharacterDiff(grading);
+    const diffBox = el("div", "answer-diff");
+    appendDiffLine(diffBox, "빠진·다른 글자", diff.expectedOps, "missing");
+    appendDiffLine(diffBox, "더 입력한 글자", diff.actualOps, "extra");
+    feedback.append(diffBox);
+  }
+
+  function updateMistakeNote(verse, grading) {
+    const existing = state.mistakes[verse.ref];
+    if (!grading.exact) {
+      state.mistakes[verse.ref] = {
+        count: (existing?.count || 0) + 1,
+        correctStreak: 0,
+        lastActual: grading.actual,
+        expected: verse.text,
+        similarity: grading.ratio,
+        lastMistakeAt: new Date().toISOString(),
+      };
+      return { saved: true };
+    }
+    if (!existing) return null;
+    if (game.hintUsed) return { hinted: true, streak: existing.correctStreak || 0 };
+    const streak = (existing.correctStreak || 0) + 1;
+    if (streak >= 2) {
+      delete state.mistakes[verse.ref];
+      return { cleared: true };
+    }
+    state.mistakes[verse.ref] = { ...existing, correctStreak: streak, lastCorrectAt: new Date().toISOString() };
+    return { streak };
+  }
+
+  function finishAnswer(grading) {
     const verse = currentVerse();
     game.checked = true;
-    const points = correct ? (game.hintUsed ? 70 : 100) : 40;
+    const correct = grading.exact;
+    const points = correct ? (game.hintUsed ? 75 : 100) : grading.near ? Math.max(60, Math.round(grading.ratio * 70)) : Math.max(20, Math.round(grading.ratio * 55));
     game.score += points;
+    const mistakeStatus = updateMistakeNote(verse, grading);
     const prior = state.progress[verse.ref] || { level: 0, attempts: 0 };
     state.progress[verse.ref] = {
       level: Math.max(0, Math.min(5, prior.level + (correct ? 1 : -1))),
       attempts: prior.attempts + 1,
       lastPracticed: new Date().toISOString(),
     };
-    state.history.push({ ref: verse.ref, mode: game.mode, sessionType: game.sessionType, correct, date: todayKey(), at: new Date().toISOString() });
+    state.history.push({ ref: verse.ref, mode: game.mode, sessionType: game.sessionType, correct, points, similarity: grading.ratio, date: todayKey(), at: new Date().toISOString() });
     state.history = state.history.slice(-500);
     state.lastSession = { ref: verse.ref, mode: game.mode };
     saveState();
     $("#gameScore").textContent = game.score;
     const feedback = $("#gameFeedback");
     feedback.className = `game-feedback show ${correct ? "correct" : "wrong"}`;
-    feedback.textContent = correct ? `잘 새겼어요. ${points}점을 얻었습니다.` : `조금 달라도 괜찮아요. 정답을 눈으로 한 번 더 새겨보세요: ${verse.text}`;
+    renderAnswerFeedback(feedback, grading, points, mistakeStatus);
     $("#checkAnswerBtn").textContent = game.index === game.queue.length - 1 ? "연습 마치기" : "다음 말씀";
     $("#hintBtn").style.visibility = "hidden";
   }
@@ -1024,9 +1217,10 @@
       core: "핵심 12구절 완료 · 이번 주 새 진도로 이어가세요.",
       weekly: "새 진도 완료 · 이전 말씀 누적 암송으로 이어가세요.",
       cumulative: "누적 암송 완료 · 녹음 인증으로 마무리해 보세요.",
+      mistakes: "오답 반복학습을 마쳤어요. 남은 구절을 확인해 보세요.",
     };
     showToast(nextMessages[sessionType] || `${count}절 연습 완료 · ${finalScore}점`, "good");
-    switchView(sessionType === "free" ? "progress" : "home");
+    switchView(sessionType === "mistakes" ? "mistakes" : sessionType === "free" ? "progress" : "home");
   }
 
   function showHint() {
@@ -1254,7 +1448,7 @@
           verses: parsed.verses || {}, coreVerses: parsed.coreVerses || {},
           cumulativeRefs: parsed.cumulativeRefs || [], certifications: parsed.certifications || {},
           reminders: { ...defaultState.reminders, ...(parsed.reminders || {}), lastSent: parsed.reminders?.lastSent || {} },
-          progress: parsed.progress || {}, history: parsed.history || [],
+          progress: parsed.progress || {}, history: parsed.history || [], mistakes: parsed.mistakes || {},
         };
         saveState();
         renderAll();
@@ -1287,13 +1481,18 @@
       selectedRange.has(chapter) ? selectedRange.delete(chapter) : selectedRange.add(chapter);
       renderRange();
     }
+    const scopeButton = event.target.closest("[data-practice-scope]");
+    if (scopeButton && !scopeButton.disabled) {
+      practiceScope = scopeButton.dataset.practiceScope;
+      renderRange();
+    }
     const testamentButton = event.target.closest("#testamentFilter [data-testament]");
     if (testamentButton) {
       bibleTestament = testamentButton.dataset.testament;
       renderBibleView();
     }
     const modeCard = event.target.closest(".mode-card");
-    if (modeCard) ensureVerses(() => startGame(modeCard.dataset.mode));
+    if (modeCard) ensureVerses(() => openPracticeRange(modeCard.dataset.mode));
     const planButton = event.target.closest("[data-plan]");
     if (planButton && !planButton.disabled) startPlan(planButton.dataset.plan);
     const versePlay = event.target.closest(".verse-play");
@@ -1304,6 +1503,8 @@
         if (entry) startGame(preferredMode, selectedRange, null, [entry], "bible");
       } else startGame(preferredMode, selectedRange, versePlay.dataset.ref);
     }
+    const mistakePlay = event.target.closest(".mistake-play");
+    if (mistakePlay) startMistakeReview(mistakePlay.dataset.mistakeRef);
     const tile = event.target.closest(".word-tile");
     if (tile && game?.mode === "order" && !game.checked) {
       const answer = $(".order-answer");
@@ -1324,7 +1525,7 @@
   $("#libraryImportBtn").addEventListener("click", () => { renderImportUI(); openModal("#importModal"); });
   $("#openBibleFromHeroBtn").addEventListener("click", () => switchView("bible"));
   $("#openBibleFromImportBtn").addEventListener("click", () => { closeModal($("#importModal")); switchView("bible"); });
-  $("#chooseVerseBtn").addEventListener("click", () => ensureVerses(() => openModal("#rangeModal")));
+  $("#chooseVerseBtn").addEventListener("click", () => ensureVerses(() => openPracticeRange(preferredMode)));
   $("#startTodayBtn").addEventListener("click", () => startPlan("core"));
   $("#continueBtn").addEventListener("click", () => { renderRecordingChecklist(); openModal("#recordingModal"); });
   $("#saveVersesBtn").addEventListener("click", saveImportedVerses);
@@ -1344,7 +1545,8 @@
     });
     reader.readAsText(file);
   });
-  $("#startRangeBtn").addEventListener("click", () => { closeModal($("#rangeModal")); startGame(preferredMode, selectedRange); });
+  $("#startRangeBtn").addEventListener("click", startSelectedPracticeRange);
+  $("#reviewAllMistakesBtn").addEventListener("click", () => startMistakeReview());
   $("#reloadBibleBtn").addEventListener("click", () => loadBibleData(true));
   $("#bibleBookSelect").addEventListener("change", (event) => {
     bibleSelection = { book: event.target.value, chapter: 1, start: 1, end: 10 };
@@ -1395,7 +1597,7 @@
   $("#backupInput").addEventListener("change", (event) => event.target.files[0] && importBackup(event.target.files[0]));
   $("#resetProgressBtn").addEventListener("click", () => {
     if (!confirm("저장한 본문은 남기고 학습 기록만 초기화할까요?")) return;
-    state.progress = {}; state.history = []; state.certifications = {}; state.reminders.lastSent = {}; state.lastSession = null; saveState(); renderAll(); closeModal($("#settingsModal")); showToast("학습 기록을 새로 시작합니다.");
+    state.progress = {}; state.history = []; state.mistakes = {}; state.certifications = {}; state.reminders.lastSent = {}; state.lastSession = null; saveState(); renderAll(); closeModal($("#settingsModal")); showToast("학습 기록과 오답노트를 새로 시작합니다.");
   });
   $("#mobileMenuBtn").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
   $("#checkAnswerBtn").addEventListener("click", checkChallenge);
