@@ -48,6 +48,15 @@
   let activeView = "home";
   let libraryChapter = "all";
   let selectedRange = new Set([Number(state.weeklyPlan?.chapter || 2)]);
+  const initialCustomRefs = weeklyRefs();
+  const [initialCustomStartChapter, initialCustomStartVerse] = (initialCustomRefs[0] || "1:1").split(":").map(Number);
+  const [initialCustomEndChapter, initialCustomEndVerse] = (initialCustomRefs[initialCustomRefs.length - 1] || "1:1").split(":").map(Number);
+  let customRangeSelection = {
+    startChapter: initialCustomStartChapter,
+    startVerse: initialCustomStartVerse,
+    endChapter: initialCustomEndChapter,
+    endVerse: initialCustomEndVerse,
+  };
   let practiceScope = "weekly";
   let preferredMode = "initial";
   let importScope = "ephesians";
@@ -218,6 +227,29 @@
     const current = new Set(weeklyRefs());
     const refs = new Set(state.cumulativeRefs.filter((ref) => !current.has(ref)));
     return verseEntries().filter((verse) => refs.has(verse.ref));
+  }
+
+  function ephesiansPosition(chapter, verse) {
+    return CHAPTER_COUNTS.slice(0, chapter - 1).reduce((sum, count) => sum + count, 0) + verse;
+  }
+
+  function customRangeEntries() {
+    const start = ephesiansPosition(customRangeSelection.startChapter, customRangeSelection.startVerse);
+    const end = ephesiansPosition(customRangeSelection.endChapter, customRangeSelection.endVerse);
+    return verseEntries().filter((entry) => {
+      const position = ephesiansPosition(entry.chapter, entry.verse);
+      return position >= start && position <= end;
+    });
+  }
+
+  function customRangeLabel() {
+    const start = customRangeSelection;
+    const sameChapter = start.startChapter === start.endChapter;
+    const sameVerse = sameChapter && start.startVerse === start.endVerse;
+    if (sameVerse) return `에베소서 ${start.startChapter}:${start.startVerse}`;
+    return sameChapter
+      ? `에베소서 ${start.startChapter}:${start.startVerse}–${start.endVerse}`
+      : `에베소서 ${start.startChapter}:${start.startVerse}–${start.endChapter}:${start.endVerse}`;
   }
 
   function normalize(text) {
@@ -419,18 +451,8 @@
   }
 
   function renderRange() {
-    const wrap = $("#rangeChapters");
-    wrap.innerHTML = "";
     const entries = verseEntries();
-    CHAPTER_COUNTS.forEach((_, i) => {
-      const chapter = i + 1;
-      const count = entries.filter((v) => v.chapter === chapter).length;
-      const button = el("button", `range-chip${selectedRange.has(chapter) ? " selected" : ""}`);
-      button.dataset.chapter = chapter;
-      button.disabled = count === 0;
-      button.innerHTML = `<strong>${chapter}장</strong><small>${count ? `${count}절 저장됨` : "본문 없음"}</small>`;
-      wrap.append(button);
-    });
+    renderCustomRangeControls();
     const weekly = weeklyEntries();
     const cumulative = cumulativeEntries();
     if (practiceScope === "weekly" && !weekly.length) practiceScope = "custom";
@@ -443,17 +465,52 @@
     $("#scopeCumulativeLabel").textContent = cumulative.length ? `${cumulative.length}절` : "아직 없음";
     $("#customRangePanel").hidden = practiceScope !== "custom";
 
-    const total = entries.filter((v) => selectedRange.has(v.chapter)).length;
-    const availableSelected = [...selectedRange].filter((chapter) => entries.some((v) => v.chapter === chapter)).sort();
+    const customEntries = customRangeEntries();
     const summaries = {
       weekly: `${weeklyLabel()} · 입력한 새 진도 ${weekly.length}절을 모두 연습합니다.`,
       cumulative: cumulative.length ? `이전 암송분 ${cumulative.length}절을 처음부터 누적해 연습합니다.` : "누적된 이전 진도가 아직 없어요.",
-      custom: total ? `에베소서 ${availableSelected.join(" · ")}장 중 오늘 ${Math.min(Number(state.settings.dailyGoal || 5), total)}절을 골라 연습합니다.` : "연습할 장을 하나 이상 골라주세요.",
+      custom: customEntries.length ? `${customRangeLabel()} · ${customEntries.length}절을 선택한 순서대로 모두 연습합니다.` : "선택한 범위에 사용할 수 있는 본문이 없어요.",
       bible: "성경 전체 메뉴로 이동해 성경·장·시작 절·마지막 절을 선택합니다.",
     };
     $("#rangeSummary").textContent = summaries[practiceScope];
     $("#startRangeBtn").textContent = practiceScope === "bible" ? "성경 전체에서 범위 고르기" : "선택한 진도로 시작";
-    $("#startRangeBtn").disabled = practiceScope === "weekly" ? !weekly.length : practiceScope === "cumulative" ? !cumulative.length : practiceScope === "custom" ? total === 0 : false;
+    $("#startRangeBtn").disabled = practiceScope === "weekly" ? !weekly.length : practiceScope === "cumulative" ? !cumulative.length : practiceScope === "custom" ? !customEntries.length : false;
+  }
+
+  function fillNumberSelect(select, count, value, suffix) {
+    select.innerHTML = Array.from({ length: count }, (_, index) => `<option value="${index + 1}">${index + 1}${suffix}</option>`).join("");
+    select.value = String(Math.max(1, Math.min(count, value)));
+  }
+
+  function renderCustomRangeControls() {
+    const startChapter = $("#customStartChapter");
+    const endChapter = $("#customEndChapter");
+    fillNumberSelect(startChapter, CHAPTER_COUNTS.length, customRangeSelection.startChapter, "장");
+    fillNumberSelect(endChapter, CHAPTER_COUNTS.length, customRangeSelection.endChapter, "장");
+    fillNumberSelect($("#customStartVerse"), CHAPTER_COUNTS[customRangeSelection.startChapter - 1], customRangeSelection.startVerse, "절");
+    fillNumberSelect($("#customEndVerse"), CHAPTER_COUNTS[customRangeSelection.endChapter - 1], customRangeSelection.endVerse, "절");
+  }
+
+  function updateCustomRange(changedSide) {
+    const next = {
+      startChapter: Number($("#customStartChapter").value),
+      startVerse: Number($("#customStartVerse").value),
+      endChapter: Number($("#customEndChapter").value),
+      endVerse: Number($("#customEndVerse").value),
+    };
+    next.startVerse = Math.min(next.startVerse, CHAPTER_COUNTS[next.startChapter - 1]);
+    next.endVerse = Math.min(next.endVerse, CHAPTER_COUNTS[next.endChapter - 1]);
+    if (ephesiansPosition(next.startChapter, next.startVerse) > ephesiansPosition(next.endChapter, next.endVerse)) {
+      if (changedSide === "start") {
+        next.endChapter = next.startChapter;
+        next.endVerse = next.startVerse;
+      } else {
+        next.startChapter = next.endChapter;
+        next.startVerse = next.endVerse;
+      }
+    }
+    customRangeSelection = next;
+    renderRange();
   }
 
   function openPracticeRange(mode = preferredMode) {
@@ -473,6 +530,7 @@
     let sessionType = "free";
     if (practiceScope === "weekly") { queue = weeklyEntries(); sessionType = "weekly"; }
     if (practiceScope === "cumulative") { queue = cumulativeEntries(); sessionType = "cumulative"; }
+    if (practiceScope === "custom") queue = customRangeEntries();
     closeModal($("#rangeModal"));
     startGame(preferredMode, selectedRange, null, queue, sessionType);
   }
@@ -1475,12 +1533,6 @@
       $("#parseStatus").textContent = "아직 분석하지 않았어요";
       renderImportUI();
     }
-    const rangeChip = event.target.closest(".range-chip");
-    if (rangeChip && !rangeChip.disabled) {
-      const chapter = Number(rangeChip.dataset.chapter);
-      selectedRange.has(chapter) ? selectedRange.delete(chapter) : selectedRange.add(chapter);
-      renderRange();
-    }
     const scopeButton = event.target.closest("[data-practice-scope]");
     if (scopeButton && !scopeButton.disabled) {
       practiceScope = scopeButton.dataset.practiceScope;
@@ -1546,6 +1598,10 @@
     reader.readAsText(file);
   });
   $("#startRangeBtn").addEventListener("click", startSelectedPracticeRange);
+  $("#customStartChapter").addEventListener("change", () => updateCustomRange("start"));
+  $("#customStartVerse").addEventListener("change", () => updateCustomRange("start"));
+  $("#customEndChapter").addEventListener("change", () => updateCustomRange("end"));
+  $("#customEndVerse").addEventListener("change", () => updateCustomRange("end"));
   $("#reviewAllMistakesBtn").addEventListener("click", () => startMistakeReview());
   $("#reloadBibleBtn").addEventListener("click", () => loadBibleData(true));
   $("#bibleBookSelect").addEventListener("change", (event) => {

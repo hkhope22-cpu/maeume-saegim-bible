@@ -363,16 +363,28 @@
         <button class="modal-close" data-close-modal aria-label="닫기">×</button>
         <span class="soft-badge">PRACTICE RANGE</span>
         <h2 id="rangeTitle">어느 진도를 연습할까요?</h2>
-        <p class="modal-intro">선택한 게임 방식은 유지됩니다. 이번 주 진도, 이전 누적분 또는 직접 고른 장 중에서 범위를 먼저 정하세요.</p>
+        <p class="modal-intro">선택한 게임 방식은 유지됩니다. 이번 주 진도, 이전 누적분 또는 시작 절부터 마지막 절까지의 범위를 먼저 정하세요.</p>
         <div class="practice-scope-grid" id="practiceScopeGrid">
           <button class="practice-scope active" data-practice-scope="weekly"><span>이번 주 새 진도</span><strong id="scopeWeeklyLabel">에베소서 2:10–18</strong></button>
           <button class="practice-scope" data-practice-scope="cumulative"><span>이전 누적 암송</span><strong id="scopeCumulativeLabel">0절</strong></button>
-          <button class="practice-scope" data-practice-scope="custom"><span>에베소서 직접 선택</span><strong>장별 자유 연습</strong></button>
+          <button class="practice-scope" data-practice-scope="custom"><span>에베소서 직접 선택</span><strong>장을 넘나드는 절 범위</strong></button>
           <button class="practice-scope" data-practice-scope="bible"><span>성경 전체</span><strong>66권에서 고르기</strong></button>
         </div>
         <div class="custom-range-panel" id="customRangePanel" hidden>
-          <p>연습할 장을 하나 이상 선택하세요. 설정한 자유 연습 분량만큼 출제됩니다.</p>
-          <div class="range-chapters" id="rangeChapters"></div>
+          <p class="range-help">시작 장·절과 마지막 장·절을 고르세요. 예: 2장 20절부터 3장 5절까지</p>
+          <div class="ephesians-range-grid">
+            <fieldset class="range-point">
+              <legend>시작 말씀</legend>
+              <label><span>장</span><select id="customStartChapter" aria-label="시작 장"></select></label>
+              <label><span>절</span><select id="customStartVerse" aria-label="시작 절"></select></label>
+            </fieldset>
+            <span class="range-direction" aria-hidden="true">→</span>
+            <fieldset class="range-point">
+              <legend>마지막 말씀</legend>
+              <label><span>장</span><select id="customEndChapter" aria-label="마지막 장"></select></label>
+              <label><span>절</span><select id="customEndVerse" aria-label="마지막 절"></select></label>
+            </fieldset>
+          </div>
         </div>
         <div class="range-summary" id="rangeSummary">저장된 본문이 없어요.</div>
         <button class="primary-button full" id="startRangeBtn">선택한 진도로 시작</button>
