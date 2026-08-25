@@ -68,6 +68,13 @@
   let recordingTimerId = null;
   let recordingBlob = null;
   let recordingUrl = null;
+  let voiceRecognition = null;
+  let voiceRecognitionId = 0;
+  let voiceListening = false;
+  let voiceFinalTranscript = "";
+  let voiceInterimTranscript = "";
+  let voiceMismatchAnnounced = false;
+  let voiceAudioContext = null;
   let reminderIntervalId = null;
   let currentReminderAction = null;
   let bibleData = null;
@@ -981,6 +988,7 @@
 
   function renderChallenge() {
     game.checked = false;
+    resetVoicePractice();
     game.hintUsed = false;
     game.hintLevel = 0;
     game.selectedTiles = [];
@@ -1002,6 +1010,189 @@
     if (game.mode === "blank") buildBlankChallenge(area, verse.text);
     if (game.mode === "initial") buildInitialChallenge(area, verse.text);
     if (game.mode === "order") buildOrderChallenge(area, verse.text);
+  }
+
+  function speechRecognitionConstructor() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  function combinedVoiceTranscript() {
+    return [voiceFinalTranscript, voiceInterimTranscript].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  function setVoiceStatus(message, tone = "") {
+    const status = $("#voiceStatus");
+    status.textContent = message;
+    status.className = tone;
+  }
+
+  function setVoiceButtons() {
+    const supported = Boolean(speechRecognitionConstructor());
+    $("#voiceStartBtn").disabled = !supported || Boolean(game?.checked);
+    $("#voiceStartBtn").textContent = supported ? (voiceListening ? "음성인식 멈춤" : "음성인식 시작") : "이 브라우저에서는 미지원";
+    $("#voiceGradeBtn").disabled = !supported || !combinedVoiceTranscript() || Boolean(game?.checked);
+    $("#voicePractice").classList.toggle("listening", voiceListening);
+  }
+
+  function renderVoiceTranscript() {
+    const panel = $("#voiceTranscript");
+    const output = $("#voiceTranscriptText");
+    const transcript = combinedVoiceTranscript();
+    panel.hidden = !transcript && !voiceListening;
+    output.innerHTML = "";
+    if (!transcript) {
+      output.textContent = "말씀을 기다리고 있어요…";
+      setVoiceButtons();
+      return;
+    }
+    const normalizedActual = normalize(transcript);
+    const expected = normalize(currentVerse().text).slice(0, normalizedActual.length);
+    const diff = buildCharacterDiff({ normalizedActual, normalizedExpected: expected });
+    let operationIndex = 0;
+    [...transcript].forEach((char) => {
+      if (!normalize(char)) {
+        output.append(document.createTextNode(char));
+        return;
+      }
+      const operation = diff.actualOps[operationIndex];
+      operationIndex += 1;
+      if (operation?.type === "extra") output.append(el("mark", "voice-wrong", char));
+      else output.append(el("span", "voice-match", char));
+    });
+    if (voiceInterimTranscript) output.append(el("span", "voice-interim-note", " · 인식 중"));
+    if (game?.mode === "initial") {
+      const input = $(".recall-input");
+      if (input) input.value = transcript;
+    }
+    setVoiceButtons();
+  }
+
+  async function prepareVoiceAudio() {
+    if (!$("#voiceSoundToggle").checked) return;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    voiceAudioContext ||= new AudioContextClass();
+    if (voiceAudioContext.state === "suspended") await voiceAudioContext.resume();
+  }
+
+  function playVoiceMistakeSound() {
+    if (!$("#voiceSoundToggle").checked || !voiceAudioContext) return;
+    const oscillator = voiceAudioContext.createOscillator();
+    const gain = voiceAudioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(330, voiceAudioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(190, voiceAudioContext.currentTime + .22);
+    gain.gain.setValueAtTime(.12, voiceAudioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001, voiceAudioContext.currentTime + .24);
+    oscillator.connect(gain).connect(voiceAudioContext.destination);
+    oscillator.start();
+    oscillator.stop(voiceAudioContext.currentTime + .25);
+  }
+
+  function confirmedVoiceMismatch() {
+    const spoken = normalize(voiceFinalTranscript);
+    return Boolean(spoken) && !normalize(currentVerse().text).startsWith(spoken);
+  }
+
+  function stopVoiceRecognition(message = "음성인식을 멈췄어요.") {
+    voiceListening = false;
+    const activeRecognition = voiceRecognition;
+    voiceRecognition = null;
+    voiceRecognitionId += 1;
+    try { activeRecognition?.stop(); } catch { /* already stopped */ }
+    if (message) setVoiceStatus(message);
+    setVoiceButtons();
+  }
+
+  function resetVoicePractice() {
+    stopVoiceRecognition("");
+    voiceFinalTranscript = "";
+    voiceInterimTranscript = "";
+    voiceMismatchAnnounced = false;
+    $("#voiceTranscript").hidden = true;
+    $("#voiceTranscriptText").textContent = "말씀을 기다리고 있어요…";
+    const supported = Boolean(speechRecognitionConstructor());
+    setVoiceStatus(supported ? "마이크를 누르고 말씀을 소리 내어 보세요." : "최신 Chrome에서 음성인식을 사용할 수 있어요.", supported ? "" : "warn");
+    setVoiceButtons();
+  }
+
+  async function toggleVoiceRecognition() {
+    if (voiceListening) {
+      stopVoiceRecognition("인식된 말씀을 확인한 뒤 채점해 주세요.");
+      return;
+    }
+    const Recognition = speechRecognitionConstructor();
+    if (!Recognition) return showToast("이 브라우저에서는 실시간 음성인식을 지원하지 않아요. 최신 Chrome을 사용해 주세요.", "warn");
+    voiceFinalTranscript = "";
+    voiceInterimTranscript = "";
+    voiceMismatchAnnounced = false;
+    renderVoiceTranscript();
+    try { await prepareVoiceAudio(); } catch { /* sound remains optional */ }
+    const recognition = new Recognition();
+    const recognitionId = ++voiceRecognitionId;
+    voiceRecognition = recognition;
+    recognition.lang = "ko-KR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    voiceListening = true;
+    setVoiceStatus("마이크를 연결하고 있어요…", "active");
+    setVoiceButtons();
+    recognition.onstart = () => {
+      if (recognitionId !== voiceRecognitionId) return;
+      voiceListening = true;
+      setVoiceStatus("듣고 있어요. 말씀을 천천히 암송하세요.", "active");
+      renderVoiceTranscript();
+    };
+    recognition.onresult = (event) => {
+      if (recognitionId !== voiceRecognitionId || !game) return;
+      let finalText = "";
+      let interimText = "";
+      for (let index = 0; index < event.results.length; index += 1) {
+        const text = event.results[index][0]?.transcript || "";
+        if (event.results[index].isFinal) finalText += `${text} `;
+        else interimText += `${text} `;
+      }
+      voiceFinalTranscript = finalText.trim();
+      voiceInterimTranscript = interimText.trim();
+      renderVoiceTranscript();
+      if (!voiceMismatchAnnounced && confirmedVoiceMismatch()) {
+        voiceMismatchAnnounced = true;
+        playVoiceMistakeSound();
+        if ($("#voiceStopToggle").checked) {
+          stopVoiceRecognition("다른 말씀이 인식되어 자동으로 멈췄어요.");
+          showToast("틀린 부분을 빨간색으로 확인해 보세요.", "warn");
+        } else {
+          setVoiceStatus("다른 말씀이 감지됐어요. 빨간 글자를 확인하세요.", "warn");
+        }
+      }
+    };
+    recognition.onerror = (event) => {
+      if (recognitionId !== voiceRecognitionId) return;
+      const messages = {
+        "not-allowed": "마이크 권한을 허용해 주세요.",
+        "service-not-allowed": "브라우저의 음성인식 사용이 차단되어 있어요.",
+        "no-speech": "음성이 들리지 않았어요. 다시 시작해 주세요.",
+        network: "음성인식 서비스에 연결하지 못했어요.",
+      };
+      stopVoiceRecognition(messages[event.error] || "음성인식을 계속할 수 없어요.");
+      showToast(messages[event.error] || "음성인식 오류가 발생했어요.", "warn");
+    };
+    recognition.onend = () => {
+      if (recognitionId !== voiceRecognitionId) return;
+      voiceListening = false;
+      voiceRecognition = null;
+      setVoiceStatus(combinedVoiceTranscript() ? "인식된 말씀을 확인한 뒤 채점해 주세요." : "음성인식이 멈췄어요. 다시 시작해 주세요.");
+      setVoiceButtons();
+    };
+    try { recognition.start(); } catch { stopVoiceRecognition("음성인식을 시작하지 못했어요."); showToast("음성인식을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.", "warn"); }
+  }
+
+  function gradeVoiceAnswer() {
+    const transcript = combinedVoiceTranscript();
+    if (!transcript) return showToast("먼저 말씀을 음성으로 암송해 주세요.");
+    stopVoiceRecognition("음성 답안을 채점했어요.");
+    finishAnswer(gradeRecitation(transcript, currentVerse().text));
   }
 
   function tokenize(text) {
@@ -1231,6 +1422,7 @@
   }
 
   function finishAnswer(grading) {
+    stopVoiceRecognition("");
     const verse = currentVerse();
     game.checked = true;
     const correct = grading.exact;
@@ -1253,6 +1445,7 @@
     renderAnswerFeedback(feedback, grading, points, mistakeStatus);
     $("#checkAnswerBtn").textContent = game.index === game.queue.length - 1 ? "연습 마치기" : "다음 말씀";
     $("#hintBtn").style.visibility = "hidden";
+    setVoiceButtons();
   }
 
   function nextChallenge() {
@@ -1263,6 +1456,7 @@
   }
 
   function endGame() {
+    stopVoiceRecognition("");
     const finalScore = game.score;
     const count = game.queue.length;
     const sessionType = game.sessionType;
@@ -1658,9 +1852,11 @@
   $("#mobileMenuBtn").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
   $("#checkAnswerBtn").addEventListener("click", checkChallenge);
   $("#hintBtn").addEventListener("click", showHint);
+  $("#voiceStartBtn").addEventListener("click", toggleVoiceRecognition);
+  $("#voiceGradeBtn").addEventListener("click", gradeVoiceAnswer);
   $("#exitGameBtn").addEventListener("click", () => {
     if (game && (game.index > 0 || game.checked) && !confirm("지금 연습을 나갈까요? 기록된 결과는 그대로 남습니다.")) return;
-    $("#gameOverlay").classList.remove("open"); $("#gameOverlay").setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; game = null; renderAll();
+    stopVoiceRecognition(""); $("#gameOverlay").classList.remove("open"); $("#gameOverlay").setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; game = null; renderAll();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {

@@ -463,7 +463,7 @@
         <p>앱에 포함된 성경 전체 본문은 eBible.org가 퍼블릭 도메인으로 배포하는 <strong>한국어 성경 1910</strong>입니다. 개역개정이 아니며, 원문 출처와 공개 상태는 <a href="https://ebible.org/find/details.php?id=kor" target="_blank" rel="noopener noreferrer">eBible.org 공식 안내</a>에서 확인할 수 있습니다.</p>
         <p>개역개정 등 별도 허락이 필요한 번역본은 웹에서 무단 크롤링하지 않습니다. 사용자가 정당하게 이용할 수 있는 본문을 직접 추가한 경우에만 해당 본문이 현재 브라우저에 저장되며 다른 방문자에게 배포되지 않습니다.</p>
         <p><strong>이 사이트의 검색 색인과 자동화된 크롤링은 허용하지 않습니다.</strong> robots.txt, 페이지 메타 태그와 응답 헤더로 일반 검색엔진과 크롤러의 접근을 차단합니다. 이 조치는 사이트 운영 정책이며, 기본 공개역 본문 자체의 퍼블릭 도메인 지위는 바꾸지 않습니다.</p>
-        <p>학습 기록과 녹음은 외부 서버로 자동 전송되지 않습니다. 공용 기기에서는 사용 후 브라우저 데이터를 삭제해 주세요.</p>
+        <p>학습 기록과 별도로 저장하는 녹음 파일은 외부 서버로 자동 업로드되지 않습니다. 다만 게임의 실시간 음성인식은 브라우저가 제공하는 인식 서비스를 사용하며, Chrome 환경에서는 인식 처리를 위해 음성이 서비스 제공자의 서버로 전송될 수 있습니다. 공용 기기에서는 사용 후 브라우저 데이터를 삭제해 주세요.</p>
         <button class="primary-button full" data-close-modal>확인했어요</button>
       </section>
     </div>
@@ -480,6 +480,24 @@
           <p class="verse-ref" id="gameVerseRef">에베소서 1:1</p>
           <h2 id="gamePrompt">빈칸에 들어갈 말을 떠올려 보세요.</h2>
           <p class="grading-note">띄어쓰기와 문장부호는 점수에 반영하지 않아요. 실제 글자만 비교합니다.</p>
+          <section class="voice-practice" id="voicePractice" aria-label="실시간 음성 암송">
+            <div class="voice-practice-head">
+              <div><strong>🎙 실시간 음성 암송</strong><span id="voiceStatus">마이크를 누르고 말씀을 소리 내어 보세요.</span></div>
+              <div class="voice-buttons">
+                <button class="outline-button voice-start-button" id="voiceStartBtn">음성인식 시작</button>
+                <button class="primary-button voice-grade-button" id="voiceGradeBtn" disabled>음성 답안 채점</button>
+              </div>
+            </div>
+            <div class="voice-options">
+              <label><input type="checkbox" id="voiceSoundToggle" checked /> 틀리면 소리로 알림</label>
+              <label><input type="checkbox" id="voiceStopToggle" /> 틀리면 자동으로 멈춤</label>
+            </div>
+            <div class="voice-transcript" id="voiceTranscript" hidden>
+              <small>인식된 말씀 · 정답과 다른 글자는 빨간색</small>
+              <p id="voiceTranscriptText">말씀을 기다리고 있어요…</p>
+            </div>
+            <p class="voice-privacy">Chrome 음성인식 서비스를 사용합니다. 인식 처리를 위해 음성이 브라우저 서비스 제공자에게 전송될 수 있으며, 이 기능은 별도 녹음 파일을 저장하지 않습니다.</p>
+          </section>
           <div class="challenge-area" id="challengeArea"></div>
           <div class="game-feedback" id="gameFeedback" aria-live="polite"></div>
           <div class="game-actions">
