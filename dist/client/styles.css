@@ -275,6 +275,11 @@ footer p { margin: 0; font: 400 10px var(--serif); } footer button { border: 0; 
 
 .recording-modal { text-align: center; }
 .recording-modal .modal-intro { max-width: 450px; margin-inline: auto; }
+.certification-live-feedback { margin: 0 0 16px; border: 1px solid rgba(178,104,81,.28); border-radius: 13px; background: rgba(255,254,250,.82); padding: 12px 14px; text-align: left; }
+.certification-live-feedback > strong { display: block; color: var(--ink); font: 700 11px var(--serif); }
+.certification-live-feedback p { margin: 7px 0 6px; color: var(--ink); font: 700 13px/1.85 var(--serif); word-break: keep-all; }
+.certification-live-feedback mark { border-radius: 4px; background: #f1b39c; color: #8f3628; padding: 1px 2px; font: inherit; text-decoration: underline 2px #c85e45; text-underline-offset: 3px; }
+.certification-live-feedback small { color: var(--ink-soft); font-size: 8px; }
 .recording-orb { width: 152px; height: 152px; margin: 25px auto 20px; border-radius: 50%; display: grid; place-items: center; align-content: center; gap: 5px; background: radial-gradient(circle, var(--white) 52%, var(--peach-soft) 53%, #efd0c2 57%, transparent 58%), rgba(230,169,142,.08); position: relative; }
 .recording-orb i { position: absolute; inset: 0; border: 1px solid rgba(230,169,142,.4); border-radius: inherit; }
 .recording-orb.recording i { animation: recordingPulse 1.5s ease-out infinite; }
@@ -341,6 +346,8 @@ footer p { margin: 0; font: 400 10px var(--serif); } footer button { border: 0; 
 .voice-buttons button { padding: 9px 11px; border-radius: 10px; font-size: 9px; white-space: nowrap; }
 .voice-buttons button:disabled { opacity: .42; cursor: not-allowed; transform: none; }
 .voice-options { display: flex; flex-wrap: wrap; gap: 7px 16px; margin-top: 11px; border-top: 1px solid rgba(34,56,48,.08); padding-top: 10px; }
+.continuous-range-option { display: flex; align-items: center; gap: 7px; margin: 13px 2px 0; color: var(--ink-soft); font-size: 10px; cursor: pointer; }
+.continuous-range-option input { accent-color: var(--sage-dark); }
 .voice-options label { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: 8px; cursor: pointer; }
 .voice-options input { accent-color: var(--sage-dark); }
 .voice-transcript { margin-top: 11px; border-radius: 12px; background: rgba(255,254,250,.82); padding: 11px 12px; }

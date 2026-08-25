@@ -1,0 +1,12 @@
+{
+  "name": "마음에 새김 — 성경 전체 암송 게임",
+  "short_name": "마음에 새김",
+  "start_url": "/?source=pwa",
+  "display": "standalone",
+  "background_color": "#f8f6ef",
+  "theme_color": "#f8f6ef",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/social-card.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f8f6ef" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
     <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
     <meta
@@ -17,6 +20,8 @@
     <meta property="og:image" content="/social-card.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="canonical" href="https://bible-maeum.vercel.app/" />
+    <link rel="manifest" href="./manifest.json?v=20260825-1" />
+    <link rel="apple-touch-icon" href="./social-card.png?v=20260825-1" />
     <title>마음에 새김 — 성경 전체 암송 게임</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -25,7 +30,7 @@
       href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260825-1" />
   </head>
   <body>
     <div class="ambient ambient-one"></div>
@@ -181,6 +186,7 @@
                 <p>그리스도와의 죽음·부활·승천·보좌·성령·재림 연합을 매일 선포해요.</p>
                 <div class="plan-progress"><i id="corePlanBar"></i></div>
                 <button class="plan-button" data-plan="core">12구절 암송하기 <span>→</span></button>
+                <button class="text-button subtle" data-plan="core-continuous">12구절 이어 암송 · 녹음 <span>→</span></button>
               </article>
               <article class="plan-card weekly-plan">
                 <div class="plan-top"><span class="plan-step">02 · 이번 주</span><span class="plan-status" id="weeklyPlanStatus">0 / 9</span></div>
@@ -478,6 +484,7 @@
               <label><span>절</span><select id="customEndVerse" aria-label="마지막 절"></select></label>
             </fieldset>
           </div>
+          <label class="continuous-range-option"><input type="checkbox" id="customContinuousToggle" /> 선택 범위를 끊지 않고 이어 암송하며 동시에 녹음하기</label>
         </div>
         <div class="range-summary" id="rangeSummary">저장된 본문이 없어요.</div>
         <button class="primary-button full" id="startRangeBtn">선택한 진도로 시작</button>
@@ -537,6 +544,11 @@
         <h2 id="recordingTitle">오늘의 암송 인증</h2>
         <p class="modal-intro">핵심 12구절과 오늘 연습한 말씀을 소리 내어 암송해 보세요. 녹음은 이 기기에서만 처리됩니다.</p>
         <div class="recording-orb" id="recordingOrb"><i></i><span id="recordingTimer">00:00</span><small id="recordingState">녹음 준비</small></div>
+        <section class="certification-live-feedback" id="certificationLiveFeedback" hidden aria-live="polite">
+          <strong>오늘의 암송 본문 · 실시간 비교</strong>
+          <p id="certificationTargetText">녹음을 시작하면 본문과 음성을 비교합니다.</p>
+          <small id="certificationFeedbackStatus">정답과 다른 단어는 즉시 빨간색으로 표시됩니다.</small>
+        </section>
         <div class="recording-checklist" id="recordingChecklist"></div>
         <audio id="recordingPreview" controls hidden></audio>
         <div class="recording-actions">
@@ -579,16 +591,15 @@
             <div class="voice-practice-head">
               <div><strong>🎙 실시간 음성 암송</strong><span id="voiceStatus">마이크를 누르고 말씀을 소리 내어 보세요.</span></div>
               <div class="voice-buttons">
-                <button class="outline-button voice-start-button" id="voiceStartBtn">음성인식 시작</button>
+                <button class="outline-button voice-start-button" id="voiceStartBtn">녹음/음성인식 시작</button>
                 <button class="primary-button voice-grade-button" id="voiceGradeBtn" disabled>음성 답안 채점</button>
               </div>
             </div>
             <div class="voice-options">
               <label><input type="checkbox" id="voiceSoundToggle" checked /> 틀리면 소리로 알림</label>
-              <label><input type="checkbox" id="voiceStopToggle" /> 틀리면 자동으로 멈춤</label>
             </div>
             <div class="voice-transcript" id="voiceTranscript" hidden>
-              <small>인식된 말씀 · 정답과 다른 글자는 빨간색</small>
+              <small>실시간 비교 · 정답과 다른 단어는 빨간색 (말을 이어서 바로 고칠 수 있어요)</small>
               <p id="voiceTranscriptText">말씀을 기다리고 있어요…</p>
             </div>
             <p class="voice-privacy">Chrome 음성인식 서비스를 사용합니다. 인식 처리를 위해 음성이 브라우저 서비스 제공자에게 전송될 수 있으며, 이 기능은 별도 녹음 파일을 저장하지 않습니다.</p>
@@ -604,6 +615,9 @@
     </div>
 
     <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=20260825-1"></script>
+    <script>
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js?v=20260825-1", { updateViaCache: "none" });
+    </script>
   </body>
 </html>

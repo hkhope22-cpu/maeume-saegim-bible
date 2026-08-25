@@ -80,6 +80,9 @@
   let voiceResultStartIndex = 0;
   let voiceMismatchAnnounced = false;
   let voiceAudioContext = null;
+  let certificationRecognition = null;
+  let certificationRecognitionId = 0;
+  let certificationTranscript = "";
   let reminderIntervalId = null;
   let currentReminderAction = null;
   let bibleData = null;
@@ -1033,6 +1036,82 @@
       <div><strong>누적 암송</strong>${cumulativeDone}/${cumulative.length} 연습</div>`;
   }
 
+  function certificationTargetEntries() {
+    const practicedRefs = [...new Set(todayHistory().map((item) => item.ref))];
+    const practiced = practicedRefs.map(entryForRef).filter(Boolean);
+    return practiced.length ? practiced : weeklyEntries();
+  }
+
+  function certificationTargetText() {
+    return certificationTargetEntries().map((entry) => entry.text).join(" ").trim();
+  }
+
+  function renderCertificationFeedback() {
+    const panel = $("#certificationLiveFeedback");
+    const target = certificationTargetText();
+    const output = $("#certificationTargetText");
+    panel.hidden = !target;
+    output.innerHTML = "";
+    if (!target) {
+      output.textContent = "오늘 연습한 말씀을 먼저 선택하거나 연습해 주세요.";
+      return;
+    }
+    const targetWords = tokenize(target);
+    const spokenWords = tokenize(certificationTranscript);
+    targetWords.forEach((word, index) => {
+      if (index) output.append(document.createTextNode(" "));
+      const spoken = spokenWords[index];
+      const mismatch = Boolean(spoken) && normalize(spoken) !== normalize(word);
+      output.append(el(mismatch ? "mark" : "span", mismatch ? "certification-wrong" : "", word));
+    });
+    $("#certificationFeedbackStatus").textContent = certificationTranscript
+      ? "실시간 인식 중 · 빨간 단어를 바로 고쳐 암송해 보세요."
+      : "말씀을 시작하면 정답과 다른 단어를 즉시 빨간색으로 표시합니다.";
+  }
+
+  function stopCertificationRecognition() {
+    const activeRecognition = certificationRecognition;
+    certificationRecognition = null;
+    certificationRecognitionId += 1;
+    try { activeRecognition?.stop(); } catch { /* already stopped */ }
+  }
+
+  function startCertificationRecognition() {
+    const Recognition = speechRecognitionConstructor();
+    if (!Recognition || !certificationTargetText()) return;
+    stopCertificationRecognition();
+    certificationTranscript = "";
+    renderCertificationFeedback();
+    const recognition = new Recognition();
+    const recognitionId = ++certificationRecognitionId;
+    certificationRecognition = recognition;
+    recognition.lang = "ko-KR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      if (recognitionId !== certificationRecognitionId) return;
+      certificationTranscript = [...event.results].map((result) => result[0]?.transcript || "").join(" ").trim();
+      renderCertificationFeedback();
+    };
+    recognition.onerror = (event) => {
+      if (recognitionId !== certificationRecognitionId) return;
+      $("#certificationFeedbackStatus").textContent = event.error === "not-allowed"
+        ? "음성 비교를 위해 마이크 권한을 허용해 주세요. 녹음은 계속됩니다."
+        : "음성 인식을 다시 연결하고 있어요…";
+    };
+    recognition.onend = () => {
+      if (recognitionId !== certificationRecognitionId) return;
+      if (mediaRecorder?.state === "recording") {
+        setTimeout(() => {
+          if (recognitionId !== certificationRecognitionId || mediaRecorder?.state !== "recording") return;
+          try { recognition.start(); } catch { /* browser can briefly reject a restart; its next end event retries */ }
+        }, 0);
+      }
+    };
+    try { recognition.start(); } catch { $("#certificationFeedbackStatus").textContent = "음성 인식을 시작하지 못했어요. 녹음은 계속됩니다."; }
+  }
+
   function reminderTimePassed(time) {
     if (!/^\d{2}:\d{2}$/.test(time || "")) return false;
     const [hours, minutes] = time.split(":").map(Number);
@@ -1158,7 +1237,10 @@
   }
 
   function closeModal(modal) {
-    if (modal?.id === "recordingModal" && mediaRecorder?.state === "recording") mediaRecorder.stop();
+    if (modal?.id === "recordingModal") {
+      stopCertificationRecognition();
+      if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+    }
     modal.classList.remove("open");
     modal.setAttribute("aria-hidden", "true");
     if (!$(".modal-backdrop.open") && !$("#gameOverlay").classList.contains("open")) document.body.style.overflow = "";
@@ -1545,14 +1627,24 @@
         "no-speech": "음성이 들리지 않았어요. 다시 시작해 주세요.",
         network: "음성인식 서비스에 연결하지 못했어요.",
       };
+      if (mediaRecorder?.state === "recording" && voiceListening) {
+        setVoiceStatus(`${messages[event.error] || "음성인식 오류"} 자동으로 다시 연결합니다.`, "warn");
+        return;
+      }
       stopVoiceRecognition(messages[event.error] || "음성인식을 계속할 수 없어요.");
       showToast(messages[event.error] || "음성인식 오류가 발생했어요.", "warn");
     };
     recognition.onend = () => {
       if (recognitionId !== voiceRecognitionId) return;
-      voiceListening = false;
+      if (voiceListening) {
+        setVoiceStatus("음성인식을 계속 듣고 있어요.", "active");
+        setTimeout(() => {
+          if (recognitionId !== voiceRecognitionId || !voiceListening) return;
+          try { recognition.start(); } catch { /* browser can briefly reject a restart; its next end event retries */ }
+        }, 0);
+        return;
+      }
       voiceRecognition = null;
-      setVoiceStatus(combinedVoiceTranscript() ? "인식된 말씀을 확인한 뒤 채점해 주세요." : "음성인식이 멈췄어요. 다시 시작해 주세요.");
       setVoiceButtons();
     };
     try { recognition.start(); } catch { stopVoiceRecognition("음성인식을 시작하지 못했어요."); showToast("음성인식을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.", "warn"); }
@@ -2010,6 +2102,7 @@
   }
 
   function completeRecording() {
+    stopCertificationRecognition();
     const completedBlob = new Blob(recordingChunks, { type: mediaRecorder?.mimeType || "audio/webm" });
     stopRecordingTracks();
     if (!confirm("녹음본을 저장하시겠습니까?")) {
@@ -2056,6 +2149,7 @@
       mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) recordingChunks.push(event.data); });
       mediaRecorder.addEventListener("stop", completeRecording, { once: true });
       mediaRecorder.start();
+      startCertificationRecognition();
       recordingStartedAt = Date.now();
       updateRecordingTimer();
       recordingTimerId = setInterval(updateRecordingTimer, 500);
@@ -2077,6 +2171,7 @@
 
   async function toggleRecording() {
     if (mediaRecorder?.state === "recording") {
+      stopCertificationRecognition();
       mediaRecorder.stop();
       return;
     }
@@ -2092,6 +2187,7 @@
       mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) recordingChunks.push(event.data); });
       mediaRecorder.addEventListener("stop", completeRecording, { once: true });
       mediaRecorder.start();
+      startCertificationRecognition();
       recordingStartedAt = Date.now();
       updateRecordingTimer();
       recordingTimerId = setInterval(updateRecordingTimer, 500);
@@ -2211,7 +2307,7 @@
   $("#openBibleFromImportBtn").addEventListener("click", () => { closeModal($("#importModal")); switchView("bible"); });
   $("#chooseVerseBtn").addEventListener("click", () => ensureVerses(() => openPracticeRange(preferredMode)));
   $("#startTodayBtn").addEventListener("click", () => startPlan("core"));
-  $("#continueBtn").addEventListener("click", () => { renderRecordingChecklist(); openModal("#recordingModal"); });
+  $("#continueBtn").addEventListener("click", () => { renderRecordingChecklist(); renderCertificationFeedback(); openModal("#recordingModal"); });
   $("#saveVersesBtn").addEventListener("click", saveImportedVerses);
   $("#verseInput").addEventListener("input", (event) => {
     const parsed = importScope === "ephesians" ? parseVerses(event.target.value) : parseCoreVerses(event.target.value);
@@ -2275,7 +2371,7 @@
   $("#cumulativeReminderTime").addEventListener("change", (event) => saveReminderTime("cumulative", event.target.value));
   $("#recordingReminderTime").addEventListener("change", (event) => saveReminderTime("recording", event.target.value));
   $("#reminderActionBtn").addEventListener("click", () => {
-    if (currentReminderAction === "recording") { renderRecordingChecklist(); openModal("#recordingModal"); }
+    if (currentReminderAction === "recording") { renderRecordingChecklist(); renderCertificationFeedback(); openModal("#recordingModal"); }
     else if (currentReminderAction) startPlan(currentReminderAction);
   });
   $("#recordButton").addEventListener("click", toggleRecording);
