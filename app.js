@@ -889,9 +889,12 @@
     let sessionType = "free";
     if (practiceScope === "weekly") { queue = weeklyEntries(); sessionType = "weekly"; }
     if (practiceScope === "cumulative") { queue = cumulativeEntries(); sessionType = "cumulative"; }
-    if (practiceScope === "custom") queue = customRangeEntries();
+    if (practiceScope === "custom") {
+      queue = customRangeEntries();
+      sessionType = $("#customContinuousToggle").checked ? "continuous" : "custom";
+    }
     closeModal($("#rangeModal"));
-    startGame(preferredMode, selectedRange, null, queue, sessionType);
+    startGame(sessionType === "continuous" ? "initial" : preferredMode, selectedRange, null, queue, sessionType);
   }
 
   function renderBibleSourceState() {
@@ -1349,14 +1352,15 @@
     game.selectedTiles = [];
     game.blankWords = [];
     const verse = currentVerse();
-    $("#gameModeLabel").textContent = game.sessionType === "core-continuous" ? "이어 암송 · 녹음" : MODE_NAMES[game.mode];
+    const continuous = game.sessionType === "continuous" || game.sessionType === "core-continuous";
+    $("#gameModeLabel").textContent = continuous ? "이어 암송 · 녹음" : MODE_NAMES[game.mode];
     $("#gameVerseRef").textContent = formatRef(verse.ref);
     $("#gameProgressText").textContent = `${game.index + 1} / ${game.queue.length}`;
     $("#gameProgressBar").style.width = `${(game.index / game.queue.length) * 100}%`;
     $("#gameScore").textContent = game.score;
     $("#gameFeedback").className = "game-feedback";
     $("#gameFeedback").textContent = "";
-    $("#checkAnswerBtn").textContent = game.sessionType === "core-continuous" ? "인식 결과 채점" : "정답 확인";
+    $("#checkAnswerBtn").textContent = continuous ? "인식 결과 채점" : "정답 확인";
     $("#hintBtn").style.visibility = "visible";
     $("#hintBtn").disabled = false;
     $("#hintBtn").textContent = game.mode === "blank" ? "한 글자씩 보기" : "전체 구절 보기";
@@ -1365,6 +1369,7 @@
     if (game.mode === "blank") buildBlankChallenge(area, verse.text);
     if (game.mode === "initial") buildInitialChallenge(area, verse.text);
     if (game.mode === "order") buildOrderChallenge(area, verse.text);
+    if (continuous) void startContinuousPractice();
   }
 
   function speechRecognitionConstructor() {
@@ -1404,19 +1409,13 @@
       setVoiceButtons();
       return;
     }
-    const normalizedActual = normalize(transcript);
-    const expected = normalize(currentVerse().text).slice(0, normalizedActual.length);
-    const diff = buildCharacterDiff({ normalizedActual, normalizedExpected: expected });
-    let operationIndex = 0;
-    [...transcript].forEach((char) => {
-      if (!normalize(char)) {
-        output.append(document.createTextNode(char));
-        return;
-      }
-      const operation = diff.actualOps[operationIndex];
-      operationIndex += 1;
-      if (operation?.type === "extra") output.append(el("mark", "voice-wrong", char));
-      else output.append(el("span", "voice-match", char));
+    const actualWords = tokenize(transcript);
+    const expectedWords = tokenize(currentVerse().text);
+    actualWords.forEach((word, index) => {
+      if (index) output.append(document.createTextNode(" "));
+      const expectedWord = expectedWords[index] || "";
+      const isWrong = normalize(word) !== normalize(expectedWord);
+      output.append(el(isWrong ? "mark" : "span", isWrong ? "voice-wrong" : "voice-match", word));
     });
     if (voiceInterimTranscript) output.append(el("span", "voice-interim-note", " · 인식 중"));
     if (game?.mode === "initial") {
@@ -1487,7 +1486,6 @@
     voiceMismatchAnnounced = false;
     renderVoiceTranscript();
     try { await prepareVoiceAudio(); } catch { /* sound remains optional */ }
-    if (game?.sessionType === "core-continuous" && !await startContinuousRecording()) return;
     const recognition = new Recognition();
     const recognitionId = ++voiceRecognitionId;
     voiceRecognition = recognition;
@@ -1516,14 +1514,14 @@
       voiceFinalTranscript = finalText.trim();
       voiceInterimTranscript = interimText.trim();
       renderVoiceTranscript();
-      if (game.sessionType === "core-continuous" && voiceFinalTranscript) {
+      if ((game.sessionType === "continuous" || game.sessionType === "core-continuous") && voiceFinalTranscript) {
         const grading = gradeRecitation(voiceFinalTranscript, currentVerse().text);
         if (grading.exact || grading.near) {
           finishAnswer(grading);
           clearTimeout(continuousAdvanceTimerId);
           continuousAdvanceTimerId = setTimeout(() => {
             nextChallenge();
-            if (game?.sessionType === "core-continuous") toggleVoiceRecognition();
+            if (game?.sessionType === "continuous" || game?.sessionType === "core-continuous") void startContinuousPractice();
           }, 650);
           return;
         }
@@ -1558,6 +1556,16 @@
       setVoiceButtons();
     };
     try { recognition.start(); } catch { stopVoiceRecognition("음성인식을 시작하지 못했어요."); showToast("음성인식을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.", "warn"); }
+  }
+
+  async function startContinuousPractice() {
+    if (!game || game.checked || voiceListening) return;
+    if (!speechRecognitionConstructor()) {
+      showToast("이 브라우저에서는 실시간 음성인식을 지원하지 않아요. 최신 Chrome을 사용해 주세요.", "warn");
+      return;
+    }
+    if (!await startContinuousRecording()) return;
+    await toggleVoiceRecognition();
   }
 
   function gradeVoiceAnswer() {
@@ -1830,7 +1838,7 @@
   function endGame() {
     stopVoiceRecognition("");
     clearTimeout(continuousAdvanceTimerId);
-    if (game?.sessionType === "core-continuous" && mediaRecorder?.state === "recording") mediaRecorder.stop();
+    if ((game?.sessionType === "continuous" || game?.sessionType === "core-continuous") && mediaRecorder?.state === "recording") mediaRecorder.stop();
     const finalScore = game.score;
     const count = game.queue.length;
     const sessionType = game.sessionType;
@@ -1842,6 +1850,7 @@
     const nextMessages = {
       core: "핵심 12구절 완료 · 이번 주 새 진도로 이어가세요.",
       "core-continuous": "핵심 12구절 이어 암송과 녹음이 완료됐어요.",
+      continuous: "선택 범위 이어 암송과 녹음이 완료됐어요.",
       weekly: "새 진도 완료 · 이전 말씀 누적 암송으로 이어가세요.",
       cumulative: "누적 암송 완료 · 녹음 인증으로 마무리해 보세요.",
       mistakes: "오답 반복학습을 마쳤어요. 남은 구절을 확인해 보세요.",
@@ -2299,7 +2308,7 @@
     if (game && (game.index > 0 || game.checked) && !confirm("지금 연습을 나갈까요? 기록된 결과는 그대로 남습니다.")) return;
     stopVoiceRecognition("");
     clearTimeout(continuousAdvanceTimerId);
-    if (game?.sessionType === "core-continuous" && mediaRecorder?.state === "recording") mediaRecorder.stop();
+    if ((game?.sessionType === "continuous" || game?.sessionType === "core-continuous") && mediaRecorder?.state === "recording") mediaRecorder.stop();
     $("#gameOverlay").classList.remove("open"); $("#gameOverlay").setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; game = null; renderAll();
   });
   document.addEventListener("keydown", (event) => {

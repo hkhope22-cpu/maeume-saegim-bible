@@ -479,6 +479,7 @@
               <label><span>절</span><select id="customEndVerse" aria-label="마지막 절"></select></label>
             </fieldset>
           </div>
+          <label class="continuous-range-option"><input type="checkbox" id="customContinuousToggle" /> 선택 범위를 끊지 않고 이어 암송하며 동시에 녹음하기</label>
         </div>
         <div class="range-summary" id="rangeSummary">저장된 본문이 없어요.</div>
         <button class="primary-button full" id="startRangeBtn">선택한 진도로 시작</button>
@@ -589,7 +590,7 @@
               <label><input type="checkbox" id="voiceStopToggle" /> 틀리면 자동으로 멈춤</label>
             </div>
             <div class="voice-transcript" id="voiceTranscript" hidden>
-              <small>인식된 말씀 · 정답과 다른 글자는 빨간색</small>
+              <small>실시간 비교 · 정답과 다른 단어는 빨간색 (말을 이어서 바로 고칠 수 있어요)</small>
               <p id="voiceTranscriptText">말씀을 기다리고 있어요…</p>
             </div>
             <p class="voice-privacy">Chrome 음성인식 서비스를 사용합니다. 인식 처리를 위해 음성이 브라우저 서비스 제공자에게 전송될 수 있으며, 이 기능은 별도 녹음 파일을 저장하지 않습니다.</p>
