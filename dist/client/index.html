@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8f6ef" />
+    <meta
+      name="description"
+      content="퍼블릭 도메인 한국어 성경 66권과 복음의 핵심 12구절을 게임으로 암송하는 프로그램"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="마음에 새김 — 성경 전체 암송 게임" />
+    <meta property="og:description" content="파일 업로드 없이 공개 성경 66권을 고르고, 힌트와 게임으로 매일 암송하세요." />
+    <meta property="og:image" content="/social-card.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>마음에 새김 — 성경 전체 암송 게임</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="주요 메뉴">
+        <a class="brand" href="#" aria-label="마음에 새김 홈">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 36 36" role="img">
+              <path d="M9 6.5h11.5c3.6 0 6.5 2.9 6.5 6.5v16.5H15.5A6.5 6.5 0 0 1 9 23V6.5Z" />
+              <path d="M27 29.5H15.5A6.5 6.5 0 0 0 9 36V13" />
+              <path d="M14 12h8M14 17h8" />
+            </svg>
+          </span>
+          <span class="brand-copy"><strong>마음에 새김</strong><small>DAILY GOSPEL · WHOLE BIBLE</small></span>
+        </a>
+
+        <nav class="nav-list">
+          <button class="nav-item active" data-view="home">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5v8a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-8Z" /></svg>
+            </span>
+            오늘의 암송
+          </button>
+          <button class="nav-item" data-view="bible">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4.5 5.5A3.5 3.5 0 0 1 8 2h4v18H8a3.5 3.5 0 0 0-3.5 2V5.5Z"/><path d="M19.5 5.5A3.5 3.5 0 0 0 16 2h-4v18h4a3.5 3.5 0 0 1 3.5 2V5.5Z"/></svg>
+            </span>
+            성경 전체
+          </button>
+          <button class="nav-item" data-view="library">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 4.5h10a3 3 0 0 1 3 3v12H8a3 3 0 0 1-3-3v-12Z" /><path d="M18 19.5H8a3 3 0 0 0-3 3V7.5" /></svg>
+            </span>
+            말씀 보관함
+          </button>
+          <button class="nav-item" data-view="progress">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7" /></svg>
+            </span>
+            나의 기록
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="daily-card">
+            <span class="daily-icon">✦</span>
+            <div><small>오늘의 걸음</small><strong><span id="sideDailyDone">0</span> / <span id="sideDailyGoal">5</span> 절</strong></div>
+            <div class="mini-progress"><i id="sideDailyBar"></i></div>
+          </div>
+          <button class="nav-item muted" id="openSettingsBtn">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-4v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3.1 14H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v4h-.2a1.7 1.7 0 0 0-1.5 1Z" /></svg>
+            </span>
+            설정
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobileMenuBtn" aria-label="메뉴 열기">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
+          <div>
+            <p class="eyebrow" id="pageEyebrow">오늘, 말씀 곁에</p>
+            <h1 id="pageTitle">평안한 하루예요 <span aria-hidden="true">🌿</span></h1>
+          </div>
+          <div class="top-actions">
+            <button class="streak-pill" id="streakPill" aria-label="연속 학습일">
+              <span>🔥</span><strong id="streakCount">0</strong><small>일 연속</small>
+            </button>
+            <button class="round-button" id="quickImportBtn" aria-label="본문 가져오기">
+              <svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 18v2h14v-2" /></svg>
+            </button>
+          </div>
+        </header>
+
+        <section id="homeView" class="view active">
+          <section class="reminder-banner" id="reminderBanner" hidden>
+            <div class="reminder-bell" aria-hidden="true">♢</div>
+            <div><span class="eyebrow">GENTLE REMINDER</span><h3 id="reminderBannerTitle">아직 남은 암송이 있어요</h3><p id="reminderBannerText">정해둔 시간이 지났어요. 지금 짧게라도 이어가 보세요.</p></div>
+            <button class="outline-button" id="reminderActionBtn">지금 하기</button>
+          </section>
+          <div class="home-grid">
+            <article class="hero-card">
+              <div class="hero-copy">
+                <span class="soft-badge">복음의 온전성 · 매일 12구절</span>
+                <h2>매일 선포하고,<br /><em>삶으로 연합해요.</em></h2>
+                <p>핵심 12구절은 매일, 새 진도는 주중에 익히고, 이전 말씀은 다시 누적해 암송합니다.</p>
+                <div class="hero-buttons">
+                  <button class="primary-button" id="startTodayBtn">
+                    핵심 12구절 시작
+                    <svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></svg>
+                  </button>
+                  <button class="text-button" id="openBibleFromHeroBtn">성경 전체에서 고르기</button>
+                  <button class="text-button subtle" id="chooseVerseBtn">에베소서 범위</button>
+                </div>
+              </div>
+              <div class="hero-visual" aria-hidden="true">
+                <div class="sun-orbit"><i></i><b></b></div>
+                <svg class="botanical" viewBox="0 0 310 250">
+                  <path class="stem" d="M155 235c-4-50 5-98 31-150" />
+                  <path class="stem" d="M160 190c-21-31-43-51-68-65" />
+                  <path class="stem" d="M167 153c20-28 40-44 67-55" />
+                  <path class="leaf" d="M91 125c-26 1-42-15-46-43 29-2 47 11 46 43Z" />
+                  <path class="leaf light" d="M118 148c-23 8-42-2-53-25 24-10 44-3 53 25Z" />
+                  <path class="leaf" d="M185 86c-2-27 13-45 40-51 5 28-8 48-40 51Z" />
+                  <path class="leaf light" d="M200 124c8-25 27-37 53-34-8 28-28 42-53 34Z" />
+                  <path class="leaf" d="M161 174c-19-18-21-40-7-63 21 18 25 40 7 63Z" />
+                </svg>
+              </div>
+            </article>
+
+            <aside class="today-card">
+              <div class="section-heading compact">
+                <div><span class="eyebrow">DAILY RHYTHM</span><h3>오늘의 리듬</h3></div>
+                <span class="date-chip" id="dateChip">8월 24일</span>
+              </div>
+              <div class="goal-ring-wrap">
+                <div class="goal-ring" id="goalRing"><div><strong id="dailyDone">0</strong><small>/ <span id="dailyGoal">5</span>절</small></div></div>
+                <p id="dailyEncouragement">오늘의 핵심 말씀을 기다려요</p>
+              </div>
+              <div class="rhythm-stats">
+                <div><span class="stat-dot coral"></span><p>이번 주 새 진도<strong id="reviewCount">2:10–18</strong></p></div>
+                <div><span class="stat-dot sage"></span><p>오늘 인증<strong id="masteredCount">대기 중</strong></p></div>
+              </div>
+            </aside>
+          </div>
+
+          <section class="daily-plan-section">
+            <div class="section-heading">
+              <div><span class="eyebrow">TODAY'S FLOW</span><h3>오늘의 암송 순서</h3></div>
+              <p>핵심 → 새 진도 → 누적 → 녹음 인증</p>
+            </div>
+            <div class="plan-grid">
+              <article class="plan-card core-plan">
+                <div class="plan-top"><span class="plan-step">01 · 매일</span><span class="plan-status" id="corePlanStatus">0 / 12</span></div>
+                <h3>복음의 온전성 핵심 12구절</h3>
+                <p>그리스도와의 죽음·부활·승천·보좌·성령·재림 연합을 매일 선포해요.</p>
+                <div class="plan-progress"><i id="corePlanBar"></i></div>
+                <button class="plan-button" data-plan="core">12구절 암송하기 <span>→</span></button>
+              </article>
+              <article class="plan-card weekly-plan">
+                <div class="plan-top"><span class="plan-step">02 · 이번 주</span><span class="plan-status" id="weeklyPlanStatus">0 / 9</span></div>
+                <h3 id="weeklyPlanTitle">에베소서 2:10–18</h3>
+                <p>주초 또는 주중에 새 진도를 먼저 마스터하고 매일 반복해요.</p>
+                <div class="plan-progress"><i id="weeklyPlanBar"></i></div>
+                <button class="plan-button" data-plan="weekly">새 진도 암송하기 <span>→</span></button>
+              </article>
+              <article class="plan-card cumulative-plan">
+                <div class="plan-top"><span class="plan-step">03 · 주중부터</span><span class="plan-status" id="cumulativePlanStatus">0절</span></div>
+                <h3>이전 말씀 누적 암송</h3>
+                <p id="cumulativePlanText">지난 주 진도는 다음 주부터 자동으로 이곳에 쌓여요.</p>
+                <div class="plan-progress"><i id="cumulativePlanBar"></i></div>
+                <button class="plan-button" data-plan="cumulative">누적 암송하기 <span>→</span></button>
+              </article>
+            </div>
+          </section>
+
+          <section class="content-section">
+            <div class="section-heading">
+              <div><span class="eyebrow">PRACTICE TOOL</span><h3>기억을 단단하게 하는 연습</h3></div>
+              <p>선택한 말씀 범위로 자유 연습해요</p>
+            </div>
+            <div class="mode-grid">
+              <button class="mode-card" data-mode="blank">
+                <span class="mode-number">01</span>
+                <span class="mode-icon peach" aria-hidden="true">
+                  <svg viewBox="0 0 42 42"><path d="M8 10h26M8 18h10M25 18h9M8 26h7M22 26h12M8 34h26" /><path class="accent" d="M18 23h4v6h-4z" /></svg>
+                </span>
+                <span class="mode-copy"><strong>빈칸 채우기</strong><small>사라진 낱말을 떠올려요</small></span>
+                <span class="mode-arrow">↗</span>
+              </button>
+              <button class="mode-card" data-mode="initial">
+                <span class="mode-number">02</span>
+                <span class="mode-icon mint" aria-hidden="true">
+                  <svg viewBox="0 0 42 42"><path d="M9 11h24v22H9z" /><path class="accent" d="M15 18h12M15 24h8" /></svg>
+                </span>
+                <span class="mode-copy"><strong>첫글자 힌트</strong><small>희미한 단서로 기억해요</small></span>
+                <span class="mode-arrow">↗</span>
+              </button>
+              <button class="mode-card" data-mode="order">
+                <span class="mode-number">03</span>
+                <span class="mode-icon lavender" aria-hidden="true">
+                  <svg viewBox="0 0 42 42"><rect x="8" y="10" width="10" height="8" rx="2" /><rect x="24" y="10" width="10" height="8" rx="2" /><rect x="8" y="24" width="10" height="8" rx="2" /><rect class="accent" x="24" y="24" width="10" height="8" rx="2" /></svg>
+                </span>
+                <span class="mode-copy"><strong>순서 맞추기</strong><small>흩어진 구절을 이어봐요</small></span>
+                <span class="mode-arrow">↗</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="continue-card certification-card" id="continueCard">
+            <div class="continue-leaf">●</div>
+            <div><span class="eyebrow">DAILY RECORDING</span><h3 id="continueTitle">오늘 암송을 녹음으로 인증해요</h3><p id="continueText">녹음 파일은 서버로 전송되지 않으며 직접 저장하거나 공유할 수 있어요.</p></div>
+            <button class="outline-button" id="continueBtn">녹음 인증</button>
+          </section>
+        </section>
+
+        <section id="bibleView" class="view">
+          <div class="view-toolbar bible-toolbar">
+            <div><span class="eyebrow">WHOLE BIBLE · 66 BOOKS</span><h2>성경 전체 암송</h2><p>파일을 올리지 않아도 공개 본문에서 바로 범위를 골라 연습할 수 있어요.</p></div>
+            <button class="outline-button" id="reloadBibleBtn">본문 다시 불러오기</button>
+          </div>
+
+          <article class="bible-source-card" id="bibleSourceCard">
+            <div class="source-seal" aria-hidden="true">公</div>
+            <div class="source-copy">
+              <span class="soft-badge">PUBLIC DOMAIN · 공개 저작물</span>
+              <h3>한국어 성경 1910</h3>
+              <p>eBible.org 공식 개발자 배포본을 앱용 데이터로 변환했습니다. 개역개정이 아닌 옛 번역이며, 누구나 전문을 암송 앱에 이용할 수 있는 퍼블릭 도메인 본문입니다.</p>
+            </div>
+            <div class="source-meta">
+              <strong id="bibleSourceCount">66권 · 불러오는 중</strong>
+              <span id="bibleSourceStatus">본문을 준비하고 있어요</span>
+              <a href="https://ebible.org/find/details.php?id=kor" target="_blank" rel="noopener noreferrer">공식 출처·권리 확인 ↗</a>
+            </div>
+          </article>
+
+          <article class="bible-picker-card">
+            <div class="section-heading">
+              <div><span class="eyebrow">CHOOSE A PASSAGE</span><h3>오늘 새길 말씀 고르기</h3></div>
+              <p>한 장 전체 또는 필요한 절만 선택하세요</p>
+            </div>
+            <div class="testament-filter" id="testamentFilter" role="tablist" aria-label="성경 구분">
+              <button class="active" data-testament="all" role="tab">성경 전체</button>
+              <button data-testament="old" role="tab">구약 39권</button>
+              <button data-testament="new" role="tab">신약 27권</button>
+            </div>
+            <div class="bible-fields">
+              <label><span>성경</span><select id="bibleBookSelect" aria-label="성경 선택"></select></label>
+              <label><span>장</span><select id="bibleChapterSelect" aria-label="장 선택"></select></label>
+              <label><span>시작 절</span><select id="bibleStartSelect" aria-label="시작 절 선택"></select></label>
+              <label><span>마지막 절</span><select id="bibleEndSelect" aria-label="마지막 절 선택"></select></label>
+              <label><span>게임</span><select id="bibleModeSelect" aria-label="게임 방식 선택"><option value="blank">빈칸 채우기</option><option value="initial" selected>첫글자 힌트</option><option value="order">순서 맞추기</option></select></label>
+            </div>
+            <div class="bible-range-footer">
+              <div class="range-summary" id="bibleRangeSummary">본문을 불러오는 중입니다.</div>
+              <div class="bible-range-actions">
+                <button class="outline-button" id="practiceWholeChapterBtn" disabled>이 장 전체 암송</button>
+                <button class="primary-button" id="practiceBibleRangeBtn" disabled>선택한 절 암송</button>
+              </div>
+            </div>
+          </article>
+
+          <section class="bible-preview-section">
+            <div class="section-heading">
+              <div><span class="eyebrow">READ & PRACTICE</span><h3 id="biblePreviewTitle">선택한 장 미리보기</h3></div>
+              <p>한 절씩 바로 시작할 수도 있어요</p>
+            </div>
+            <div class="library-list bible-chapter-list" id="bibleChapterList">
+              <div class="empty-state"><span>◌</span><h3>성경 본문을 불러오는 중이에요</h3><p>잠시만 기다려 주세요.</p></div>
+            </div>
+          </section>
+        </section>
+
+        <section id="libraryView" class="view">
+          <div class="view-toolbar">
+            <div><span class="eyebrow">MY VERSES</span><h2>말씀 보관함</h2><p id="librarySubtitle">기본 공개역과 이 기기에 저장한 말씀입니다.</p></div>
+            <button class="primary-button small" id="libraryImportBtn">+ 내 번역 추가</button>
+          </div>
+          <div class="chapter-tabs" id="chapterTabs" role="tablist"></div>
+          <div class="library-list" id="libraryList"></div>
+        </section>
+
+        <section id="progressView" class="view">
+          <div class="view-toolbar"><div><span class="eyebrow">MY JOURNEY</span><h2>나의 기록</h2><p>완벽보다 꾸준함을 바라보는 기록이에요.</p></div></div>
+          <div class="stat-grid">
+            <article class="big-stat"><span>오늘 핵심 암송</span><strong id="progressToday">0<small>/12</small></strong><i class="peach-line"></i></article>
+            <article class="big-stat"><span>누적 연습</span><strong id="progressTotal">0<small>회</small></strong><i class="sage-line"></i></article>
+            <article class="big-stat"><span>익숙한 말씀</span><strong id="progressMastered">0<small>절</small></strong><i class="purple-line"></i></article>
+          </div>
+          <article class="chapter-progress-card">
+            <div class="section-heading"><div><span class="eyebrow">CHAPTERS</span><h3>장별 새김 정도</h3></div></div>
+            <div id="chapterProgressList" class="chapter-progress-list"></div>
+          </article>
+          <article class="recent-card">
+            <div class="section-heading"><div><span class="eyebrow">RECENT</span><h3>최근 연습</h3></div></div>
+            <div id="recentList" class="recent-list"></div>
+          </article>
+        </section>
+
+        <footer><p>말씀을 마음에, 하루를 평안히.</p><button id="copyrightBtn">저작권 및 데이터 안내</button></footer>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="importModal" aria-hidden="true">
+      <section class="modal import-modal" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+        <button class="modal-close" data-close-modal aria-label="닫기">×</button>
+        <span class="soft-badge">선택 기능 · 내 기기에만 저장</span>
+        <h2 id="importTitle">내가 이용할 수 있는 번역 추가</h2>
+        <p class="modal-intro">성경 전체 공개역은 이미 자동으로 제공됩니다. 별도로 정당하게 이용할 수 있는 번역이 있을 때만 에베소서 또는 핵심 말씀을 붙여넣으세요. 입력한 본문은 이 브라우저에만 저장됩니다.</p>
+        <button class="text-button import-public-link" id="openBibleFromImportBtn">입력 없이 성경 전체 암송하기 →</button>
+        <div class="import-summary">
+          <div><span>에베소서 전체</span><strong id="ephesiansImportCount">0 / 155절</strong></div>
+          <div><span>핵심 말씀</span><strong id="coreImportCount">0 / 12절</strong></div>
+        </div>
+        <div class="import-tabs" role="tablist">
+          <button class="import-tab active" data-import-scope="ephesians">에베소서 1–6장</button>
+          <button class="import-tab" data-import-scope="core">핵심 12구절</button>
+        </div>
+        <label class="field-label" for="verseInput" id="verseInputLabel">에베소서 1–6장 전체 본문</label>
+        <textarea id="verseInput" rows="10" spellcheck="false" placeholder="전체 본문을 형식 변경 없이 그대로 붙여넣으세요."></textarea>
+        <div class="import-options">
+          <label id="replaceExistingLabel"><input type="checkbox" id="replaceExisting" /> 기존 에베소서 본문을 모두 지우고 교체</label>
+          <label class="text-button file-button">TXT 파일 선택<input type="file" id="verseTextFile" accept="text/plain,.txt" /></label>
+        </div>
+        <div class="modal-actions">
+          <span class="parse-status" id="parseStatus">아직 분석하지 않았어요</span>
+          <button class="primary-button" id="saveVersesBtn">에베소서 전체 저장</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="rangeModal" aria-hidden="true">
+      <section class="modal range-modal" role="dialog" aria-modal="true" aria-labelledby="rangeTitle">
+        <button class="modal-close" data-close-modal aria-label="닫기">×</button>
+        <span class="soft-badge">PRACTICE RANGE</span>
+        <h2 id="rangeTitle">오늘 새길 범위</h2>
+        <p class="modal-intro">저장된 말씀 중에서 연습할 장을 고르세요.</p>
+        <div class="range-chapters" id="rangeChapters"></div>
+        <div class="range-summary" id="rangeSummary">저장된 본문이 없어요.</div>
+        <button class="primary-button full" id="startRangeBtn">이 범위로 시작</button>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="settingsModal" aria-hidden="true">
+      <section class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <button class="modal-close" data-close-modal aria-label="닫기">×</button>
+        <span class="soft-badge">SETTINGS</span>
+        <h2 id="settingsTitle">나의 암송 설정</h2>
+        <label class="setting-row"><span><strong>자유 연습 분량</strong><small>범위 연습에서 한 번에 나올 절 수</small></span><select id="dailyGoalSelect"><option value="3">3절</option><option value="5">5절</option><option value="7">7절</option><option value="10">10절</option></select></label>
+        <button class="weekly-setting-button" id="openWeeklySettingsBtn"><span><strong>이번 주 새 진도</strong><small id="settingsWeeklyLabel">에베소서 2:10–18</small></span><span>변경 →</span></button>
+        <div class="reminder-settings">
+          <div class="reminder-settings-head"><span><strong>매일 암송 알림</strong><small>완료하지 않은 항목만 정해진 시간에 알려드려요</small></span><button class="reminder-toggle" id="reminderToggle" role="switch" aria-checked="false"><i></i><span>꺼짐</span></button></div>
+          <div class="reminder-time-grid">
+            <label><span>새 진도</span><input type="time" id="weeklyReminderTime" value="09:00" /></label>
+            <label><span>누적 암송</span><input type="time" id="cumulativeReminderTime" value="18:00" /></label>
+            <label><span>녹음 인증</span><input type="time" id="recordingReminderTime" value="21:00" /></label>
+          </div>
+          <p class="reminder-help" id="reminderHelp">알림을 켜면 크롬의 알림 권한을 요청합니다. 앱을 다시 열었을 때 놓친 알림도 확인해요.</p>
+        </div>
+        <div class="setting-actions"><button class="outline-button" id="exportBtn">백업 내보내기</button><label class="outline-button file-button">백업 불러오기<input type="file" id="backupInput" accept="application/json" /></label></div>
+        <button class="danger-button" id="resetProgressBtn">학습 기록만 초기화</button>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="weeklyModal" aria-hidden="true">
+      <section class="modal weekly-modal" role="dialog" aria-modal="true" aria-labelledby="weeklyTitle">
+        <button class="modal-close" data-close-modal aria-label="닫기">×</button>
+        <span class="soft-badge">WEEKLY PASSAGE</span>
+        <h2 id="weeklyTitle">이번 주 새 진도 설정</h2>
+        <p class="modal-intro">새 진도로 바꾸면 현재 진도는 누적 암송 목록으로 이동합니다. 이미 암송했던 범위도 아래에서 직접 누적 목록에 추가할 수 있어요.</p>
+        <div class="quick-progress-box">
+          <label for="weeklyQuickInput"><strong>새 진도 바로 입력</strong><small>범위만 쓰거나 해당 절 본문을 그대로 붙여넣으세요</small></label>
+          <textarea id="weeklyQuickInput" rows="4" spellcheck="false" placeholder="2:10-18&#10;&#10;또는&#10;2:10 본문…&#10;2:11 본문…"></textarea>
+          <div><span id="weeklyQuickStatus">예: 2:10–18</span><button class="primary-button small" id="applyWeeklyInputBtn">입력한 분량만 새 진도로</button></div>
+        </div>
+        <div class="modal-divider"><span>또는 범위 선택</span></div>
+        <div class="weekly-fields">
+          <label><span>장</span><select id="weeklyChapter"></select></label>
+          <label><span>시작 절</span><select id="weeklyStart"></select></label>
+          <label><span>마지막 절</span><select id="weeklyEnd"></select></label>
+        </div>
+        <div class="range-summary" id="weeklyRangeSummary">에베소서 2:10–18 · 9절</div>
+        <div class="weekly-modal-actions">
+          <button class="outline-button" id="addCumulativeBtn">기존 암송분에 추가</button>
+          <button class="primary-button" id="saveWeeklyBtn">새 진도로 설정</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="recordingModal" aria-hidden="true">
+      <section class="modal recording-modal" role="dialog" aria-modal="true" aria-labelledby="recordingTitle">
+        <button class="modal-close" data-close-modal aria-label="닫기">×</button>
+        <span class="soft-badge">DAILY RECORDING</span>
+        <h2 id="recordingTitle">오늘의 암송 인증</h2>
+        <p class="modal-intro">핵심 12구절과 오늘 연습한 말씀을 소리 내어 암송해 보세요. 녹음은 이 기기에서만 처리됩니다.</p>
+        <div class="recording-orb" id="recordingOrb"><i></i><span id="recordingTimer">00:00</span><small id="recordingState">녹음 준비</small></div>
+        <div class="recording-checklist" id="recordingChecklist"></div>
+        <audio id="recordingPreview" controls hidden></audio>
+        <div class="recording-actions">
+          <button class="primary-button record-button" id="recordButton"><span class="record-dot"></span> 녹음 시작</button>
+          <a class="outline-button download-recording disabled" id="downloadRecording" download>녹음 저장</a>
+          <button class="outline-button" id="shareRecordingBtn" disabled>공유하기</button>
+        </div>
+        <p class="recording-note">마이크 권한이 필요합니다. 녹음 파일은 자동 업로드되지 않아요.</p>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="copyrightModal" aria-hidden="true">
+      <section class="modal info-modal" role="dialog" aria-modal="true" aria-labelledby="copyrightTitle">
+        <button class="modal-close" data-close-modal aria-label="닫기">×</button>
+        <span class="soft-badge">COPYRIGHT & PRIVACY</span>
+        <h2 id="copyrightTitle">공개 본문만 자동으로 제공합니다</h2>
+        <p>앱에 포함된 성경 전체 본문은 eBible.org가 퍼블릭 도메인으로 배포하는 <strong>한국어 성경 1910</strong>입니다. 개역개정이 아니며, 원문 출처와 공개 상태는 <a href="https://ebible.org/find/details.php?id=kor" target="_blank" rel="noopener noreferrer">eBible.org 공식 안내</a>에서 확인할 수 있습니다.</p>
+        <p>개역개정 등 별도 허락이 필요한 번역본은 웹에서 무단 크롤링하지 않습니다. 사용자가 정당하게 이용할 수 있는 본문을 직접 추가한 경우에만 해당 본문이 현재 브라우저에 저장되며 다른 방문자에게 배포되지 않습니다.</p>
+        <p>학습 기록과 녹음은 외부 서버로 자동 전송되지 않습니다. 공용 기기에서는 사용 후 브라우저 데이터를 삭제해 주세요.</p>
+        <button class="primary-button full" data-close-modal>확인했어요</button>
+      </section>
+    </div>
+
+    <div class="game-overlay" id="gameOverlay" aria-hidden="true">
+      <header class="game-header">
+        <button class="round-button light" id="exitGameBtn" aria-label="게임 나가기"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></svg></button>
+        <div class="game-progress"><span id="gameProgressText">1 / 5</span><div><i id="gameProgressBar"></i></div></div>
+        <div class="game-score"><span>✦</span><strong id="gameScore">0</strong></div>
+      </header>
+      <main class="game-stage">
+        <div class="game-card" id="gameCard">
+          <span class="soft-badge" id="gameModeLabel">빈칸 채우기</span>
+          <p class="verse-ref" id="gameVerseRef">에베소서 1:1</p>
+          <h2 id="gamePrompt">빈칸에 들어갈 말을 떠올려 보세요.</h2>
+          <div class="challenge-area" id="challengeArea"></div>
+          <div class="game-feedback" id="gameFeedback" aria-live="polite"></div>
+          <div class="game-actions">
+            <button class="text-button" id="hintBtn">힌트 보기</button>
+            <button class="primary-button" id="checkAnswerBtn">정답 확인</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
