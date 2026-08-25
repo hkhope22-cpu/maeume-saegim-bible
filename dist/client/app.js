@@ -2,6 +2,9 @@
   "use strict";
 
   const STORAGE_KEY = "maeume-saegim-ephesians-v1";
+  const TEAM_SESSION_KEY = "maeume-saegim-team-session-v1";
+  const TEAM_PUBLIC_ORIGIN = "https://maeume-saegim-bible.vercel.app";
+  const TEAM_API_URL = `${location.hostname.endsWith("vercel.app") ? "" : TEAM_PUBLIC_ORIGIN}/api/team`;
   const CHAPTER_COUNTS = [23, 22, 21, 32, 33, 24];
   const BIBLE_BOOKS = [
     ["GEN", "창세기"], ["EXO", "출애굽기"], ["LEV", "레위기"], ["NUM", "민수기"], ["DEU", "신명기"], ["JOS", "여호수아"], ["JDG", "사사기"], ["RUT", "룻기"], ["1SA", "사무엘상"], ["2SA", "사무엘하"], ["1KI", "열왕기상"], ["2KI", "열왕기하"], ["1CH", "역대상"], ["2CH", "역대하"], ["EZR", "에스라"], ["NEH", "느헤미야"], ["EST", "에스더"], ["JOB", "욥기"], ["PSA", "시편"], ["PRO", "잠언"], ["ECC", "전도서"], ["SOL", "아가"], ["ISA", "이사야"], ["JER", "예레미야"], ["LAM", "예레미야애가"], ["EZE", "에스겔"], ["DAN", "다니엘"], ["HOS", "호세아"], ["JOE", "요엘"], ["AMO", "아모스"], ["OBA", "오바댜"], ["JON", "요나"], ["MIC", "미가"], ["NAH", "나훔"], ["HAB", "하박국"], ["ZEP", "스바냐"], ["HAG", "학개"], ["ZEC", "스가랴"], ["MAL", "말라기"],
@@ -82,6 +85,11 @@
   let bibleLoadError = "";
   let bibleTestament = "all";
   let bibleSelection = { book: "GEN", chapter: 1, start: 1, end: 10 };
+  let teamSession = loadTeamSession();
+  let teamData = null;
+  let teamLoading = false;
+  let teamSelectedProgress = "";
+  let teamPendingAudio = null;
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -111,6 +119,21 @@
 
   function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function loadTeamSession() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(TEAM_SESSION_KEY));
+      return saved?.code && saved?.memberId && saved?.memberToken ? saved : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveTeamSession(session) {
+    teamSession = session;
+    if (session) localStorage.setItem(TEAM_SESSION_KEY, JSON.stringify(session));
+    else localStorage.removeItem(TEAM_SESSION_KEY);
   }
 
   function todayKey(date = new Date()) {
@@ -327,10 +350,338 @@
     renderLibrary();
     renderMistakes();
     renderProgress();
+    renderTeam();
     renderRange();
     renderImportUI();
     renderWeeklyForm();
     renderRecordingChecklist();
+  }
+
+  function teamInviteCode() {
+    return String(new URLSearchParams(location.search).get("team") || "").toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 8);
+  }
+
+  function teamInviteUrl(code = teamSession?.code) {
+    const url = new URL(TEAM_PUBLIC_ORIGIN);
+    if (code) url.searchParams.set("team", code);
+    return url.toString();
+  }
+
+  function teamDateKeys(serverDate = todayKey()) {
+    const [year, month, day] = serverDate.split("-").map(Number);
+    const base = new Date(year, month - 1, day, 12);
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(base);
+      date.setDate(base.getDate() - (6 - index));
+      return {
+        key: todayKey(date),
+        label: `${date.getMonth() + 1}/${date.getDate()}`,
+        weekday: ["일", "월", "화", "수", "목", "금", "토"][date.getDay()],
+        today: index === 6,
+      };
+    });
+  }
+
+  function setSelectOptions(select, items, selectedValue) {
+    select.innerHTML = "";
+    items.forEach((item) => {
+      const option = el("option", "", `${item.title} · ${item.range}`);
+      option.value = item.id;
+      select.append(option);
+    });
+    if (items.some((item) => item.id === selectedValue)) select.value = selectedValue;
+  }
+
+  function renderTeam() {
+    const invite = teamInviteCode();
+    if (invite && !teamSession && !$("#joinTeamCode").value) $("#joinTeamCode").value = invite;
+    const joined = Boolean(teamSession);
+    $("#teamWelcomeState").hidden = joined;
+    $("#teamDashboardState").hidden = !joined;
+    $("#leaveTeamBtn").hidden = !joined;
+    $("#uploadTeamRecordingBtn").hidden = !joined;
+    $("#uploadTeamRecordingBtn").disabled = !joined || !recordingBlob;
+    $("#useLatestRecordingBtn").disabled = !recordingBlob;
+    if (!joined) {
+      $("#teamNavCount").textContent = "+";
+      return;
+    }
+
+    const group = teamData?.group;
+    const members = teamData?.members || [];
+    const certifications = teamData?.certifications || [];
+    $("#teamCode").textContent = teamSession.code;
+    $("#teamMemberName").textContent = teamSession.memberName;
+    $("#teamRoleBadge").textContent = teamSession.role === "leader" ? "그룹장" : "그룹 멤버";
+    $("#teamName").textContent = group?.name || (teamLoading ? "그룹 현황을 불러오는 중…" : "함께 암송");
+    $("#teamProgressForm").hidden = teamSession.role !== "leader";
+    $("#teamNavCount").textContent = members.length || "·";
+
+    if (!group) {
+      $("#teamMemberCount").innerHTML = `—<small>명</small>`;
+      $("#teamTodayCount").innerHTML = `—<small>명</small>`;
+      $("#teamWeekCount").innerHTML = `—<small>회</small>`;
+      $("#teamProgressCaption").textContent = teamLoading ? "그룹 현황을 불러오고 있어요." : "새로고침하여 그룹 현황을 확인해 주세요.";
+      $("#teamStatusHead").innerHTML = "";
+      $("#teamStatusBody").innerHTML = "";
+      $("#teamCertificationFeed").innerHTML = `<div class="team-empty">${teamLoading ? "그룹 인증을 불러오는 중이에요." : "아직 불러온 인증이 없어요."}</div>`;
+      return;
+    }
+
+    const progressItems = group.progressItems || [];
+    if (!progressItems.some((item) => item.id === teamSelectedProgress)) teamSelectedProgress = progressItems[0]?.id || "";
+    setSelectOptions($("#teamProgressFilter"), progressItems, teamSelectedProgress);
+    setSelectOptions($("#teamCertProgress"), progressItems, $("#teamCertProgress").value || teamSelectedProgress);
+    const dates = teamDateKeys(teamData.serverDate);
+    const recentDateSet = new Set(dates.map((date) => date.key));
+    const today = dates[dates.length - 1]?.key || todayKey();
+    const todayMembers = new Set(certifications.filter((item) => item.date === today).map((item) => item.memberId));
+    const weekCertifications = certifications.filter((item) => recentDateSet.has(item.date));
+    $("#teamMemberCount").innerHTML = `${members.length}<small>명</small>`;
+    $("#teamTodayCount").innerHTML = `${todayMembers.size}<small>명</small>`;
+    $("#teamWeekCount").innerHTML = `${weekCertifications.length}<small>회</small>`;
+
+    const selectedProgress = progressItems.find((item) => item.id === teamSelectedProgress);
+    const progressCaption = $("#teamProgressCaption");
+    progressCaption.innerHTML = "";
+    if (selectedProgress) progressCaption.append(el("strong", "", selectedProgress.title), document.createTextNode(` · ${selectedProgress.range}`));
+    else progressCaption.textContent = "그룹 진도를 선택해 주세요.";
+    const filtered = certifications.filter((item) => item.progressId === teamSelectedProgress && recentDateSet.has(item.date));
+    const certificationMap = new Map();
+    filtered.forEach((item) => certificationMap.set(`${item.memberId}:${item.date}`, item));
+    const headRow = el("tr");
+    const friendHead = el("th", "", "친구");
+    headRow.append(friendHead);
+    dates.forEach((date) => {
+      const th = el("th", date.today ? "today" : "", `${date.weekday} ${date.label}`);
+      headRow.append(th);
+    });
+    $("#teamStatusHead").replaceChildren(headRow);
+    const body = $("#teamStatusBody");
+    body.innerHTML = "";
+    members.forEach((member) => {
+      const row = el("tr");
+      const nameCell = el("td");
+      const memberCell = el("div", "team-member-cell");
+      const avatar = el("i", "", member.name.slice(0, 1));
+      const name = el("span", "", member.name);
+      memberCell.append(avatar, name);
+      if (member.role === "leader") memberCell.append(el("em", "", "그룹장"));
+      nameCell.append(memberCell);
+      row.append(nameCell);
+      dates.forEach((date) => {
+        const cell = el("td");
+        const certification = certificationMap.get(`${member.id}:${date.key}`);
+        const mark = el("span", `team-check${certification ? " done" : ""}${certification?.hasAudio ? " audio" : ""}`, certification ? "✓" : "·");
+        mark.title = certification ? `${member.name} 인증 완료${certification.hasAudio ? " · 녹음 있음" : ""}` : "인증 대기";
+        cell.append(mark);
+        row.append(cell);
+      });
+      body.append(row);
+    });
+
+    const memberById = Object.fromEntries(members.map((member) => [member.id, member]));
+    const progressById = Object.fromEntries(progressItems.map((item) => [item.id, item]));
+    const feed = $("#teamCertificationFeed");
+    feed.innerHTML = "";
+    if (!certifications.length) {
+      feed.innerHTML = `<div class="team-empty">첫 인증을 기다리고 있어요. 오늘 암송을 마쳤다면 완료 표시를 남겨 보세요.</div>`;
+    } else {
+      certifications.slice(0, 20).forEach((item) => {
+        const member = memberById[item.memberId] || { name: "그룹 친구" };
+        const progress = progressById[item.progressId] || { title: "이전 진도", range: "" };
+        const card = el("article", "team-feed-item");
+        const avatar = el("div", "team-feed-avatar", member.name.slice(0, 1));
+        const copy = el("div", "team-feed-copy");
+        copy.append(el("strong", "", `${member.name} · ${progress.title}`), el("span", "", `${progress.range} · 인증 완료`));
+        if (item.note) copy.append(el("p", "", item.note));
+        card.append(avatar, copy);
+        if (item.hasAudio && item.audioUrl) {
+          const audio = document.createElement("audio");
+          audio.controls = true;
+          audio.preload = "none";
+          audio.src = item.audioUrl;
+          audio.setAttribute("aria-label", `${member.name}님의 암송 녹음`);
+          card.append(audio);
+        } else {
+          const time = el("time", "team-feed-time", new Date(item.createdAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }));
+          card.append(time);
+        }
+        feed.append(card);
+      });
+    }
+  }
+
+  async function teamRequest(action, options = {}) {
+    const response = await fetch(`${TEAM_API_URL}?action=${encodeURIComponent(action)}${options.query ? `&${options.query}` : ""}`, {
+      method: options.method || "GET",
+      headers: options.json ? { "Content-Type": "application/json" } : undefined,
+      body: options.json ? JSON.stringify(options.json) : options.body,
+    });
+    const result = await response.json().catch(() => ({ ok: false, message: "그룹 서버의 응답을 읽지 못했어요." }));
+    if (!response.ok || !result.ok) throw new Error(result.message || "그룹 요청을 처리하지 못했어요.");
+    return result;
+  }
+
+  async function loadTeamDashboard(showSuccess = false) {
+    if (!teamSession || teamLoading) return;
+    teamLoading = true;
+    renderTeam();
+    try {
+      teamData = await teamRequest("dashboard", { query: `code=${encodeURIComponent(teamSession.code)}` });
+      if (showSuccess) showToast("그룹 현황을 새로 불러왔어요.", "good");
+    } catch (error) {
+      showToast(error.message || "그룹 현황을 불러오지 못했어요.", "warn");
+    } finally {
+      teamLoading = false;
+      renderTeam();
+    }
+  }
+
+  function setTeamFormBusy(form, busy) {
+    $$('button, input, textarea, select', form).forEach((control) => { control.disabled = busy; });
+  }
+
+  async function createTeam(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setTeamFormBusy(form, true);
+    try {
+      const result = await teamRequest("create", {
+        method: "POST",
+        json: {
+          teamName: $("#createTeamName").value,
+          memberName: $("#createMemberName").value,
+          weeklyRange: weeklyLabel(),
+          cumulativeRange: cumulativeEntries().length ? `에베소서 누적 ${cumulativeEntries().length}절` : "이전 암송분 전체",
+        },
+      });
+      saveTeamSession(result.session);
+      teamData = null;
+      history.replaceState({}, "", `${location.pathname}?team=${encodeURIComponent(result.session.code)}`);
+      renderTeam();
+      await loadTeamDashboard();
+      showToast("그룹을 만들었어요. 초대 링크를 친구에게 보내 보세요.", "good");
+    } catch (error) {
+      showToast(error.message, "warn");
+    } finally {
+      setTeamFormBusy(form, false);
+    }
+  }
+
+  async function joinTeam(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setTeamFormBusy(form, true);
+    try {
+      const result = await teamRequest("join", { method: "POST", json: { code: $("#joinTeamCode").value, memberName: $("#joinMemberName").value } });
+      saveTeamSession(result.session);
+      teamData = null;
+      history.replaceState({}, "", `${location.pathname}?team=${encodeURIComponent(result.session.code)}`);
+      renderTeam();
+      await loadTeamDashboard();
+      showToast("그룹에 참여했어요. 오늘 인증을 함께 이어가요.", "good");
+    } catch (error) {
+      showToast(error.message, "warn");
+    } finally {
+      setTeamFormBusy(form, false);
+    }
+  }
+
+  async function addTeamProgress(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setTeamFormBusy(form, true);
+    try {
+      await teamRequest("progress", {
+        method: "POST",
+        json: {
+          code: teamSession.code,
+          memberId: teamSession.memberId,
+          memberToken: teamSession.memberToken,
+          title: $("#newTeamProgressTitle").value,
+          range: $("#newTeamProgressRange").value,
+        },
+      });
+      form.reset();
+      await loadTeamDashboard();
+      showToast("새 그룹 진도를 추가했어요.", "good");
+    } catch (error) {
+      showToast(error.message, "warn");
+    } finally {
+      setTeamFormBusy(form, false);
+    }
+  }
+
+  function setTeamPendingAudio(file) {
+    teamPendingAudio = file && file.size ? file : null;
+    $("#teamAudioFileName").textContent = teamPendingAudio ? `${teamPendingAudio.name || "방금 녹음"} · ${(teamPendingAudio.size / 1024 / 1024).toFixed(2)}MB` : "파일을 선택하지 않았어요";
+  }
+
+  async function submitTeamCertification(event) {
+    event.preventDefault();
+    if (!teamSession) return;
+    if (teamPendingAudio?.size > 3 * 1024 * 1024) {
+      showToast("녹음 파일은 3MB 이하로 올려 주세요.", "warn");
+      return;
+    }
+    const form = event.currentTarget;
+    setTeamFormBusy(form, true);
+    try {
+      const data = new FormData();
+      data.append("code", teamSession.code);
+      data.append("memberId", teamSession.memberId);
+      data.append("memberToken", teamSession.memberToken);
+      data.append("progressId", $("#teamCertProgress").value);
+      data.append("note", $("#teamCertNote").value);
+      if (teamPendingAudio) {
+        const extension = teamPendingAudio.type.includes("mp4") ? "m4a" : teamPendingAudio.type.includes("mpeg") ? "mp3" : "webm";
+        const file = teamPendingAudio instanceof File ? teamPendingAudio : new File([teamPendingAudio], `암송인증-${todayKey()}.${extension}`, { type: teamPendingAudio.type || "audio/webm" });
+        data.append("audio", file);
+      }
+      await teamRequest("certify", { method: "POST", body: data });
+      $("#teamCertNote").value = "";
+      $("#teamAudioFile").value = "";
+      setTeamPendingAudio(null);
+      await loadTeamDashboard();
+      showToast("오늘의 그룹 인증을 올렸어요.", "good");
+    } catch (error) {
+      showToast(error.message, "warn");
+    } finally {
+      setTeamFormBusy(form, false);
+    }
+  }
+
+  async function copyTeamInvite() {
+    const text = teamInviteUrl();
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("초대 링크를 복사했어요.", "good");
+    } catch {
+      prompt("이 초대 링크를 복사해 친구에게 보내 주세요.", text);
+    }
+  }
+
+  async function shareTeamInvite() {
+    const url = teamInviteUrl();
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${teamData?.group?.name || "함께 암송"} 초대`, text: `마음에 새김 그룹에 함께해요. 초대코드 ${teamSession.code}`, url });
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+      }
+    }
+    await copyTeamInvite();
+  }
+
+  async function copyTeamCode() {
+    try {
+      await navigator.clipboard.writeText(teamSession.code);
+      showToast("8자리 초대코드를 복사했어요.", "good");
+    } catch {
+      prompt("초대코드를 복사해 주세요.", teamSession.code);
+    }
   }
 
   function renderStats() {
@@ -784,11 +1135,13 @@
       library: ["MY VERSES · EPHESIANS", "말씀을 꺼내보세요"],
       mistakes: ["REVIEW NOTE", "틀린 부분을 다시 단단히 새겨요"],
       progress: ["SMALL STEPS", "꾸준히 잘 걷고 있어요"],
+      team: ["TOGETHER IN THE WORD", "친구들과 함께 걸어가요"],
     };
     $("#pageEyebrow").textContent = labels[view][0];
     $("#pageTitle").textContent = labels[view][1];
     $(".sidebar").classList.remove("open");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (view === "team" && teamSession && !teamData) loadTeamDashboard();
   }
 
   function openModal(id) {
@@ -1601,6 +1954,7 @@
     $("#downloadRecording").removeAttribute("href");
     $("#downloadRecording").classList.add("disabled");
     $("#shareRecordingBtn").disabled = true;
+    $("#uploadTeamRecordingBtn").disabled = true;
   }
 
   function stopRecordingTracks() {
@@ -1643,6 +1997,9 @@
         $("#downloadRecording").download = filename;
         $("#downloadRecording").classList.remove("disabled");
         $("#shareRecordingBtn").disabled = !navigator.share;
+        $("#uploadTeamRecordingBtn").hidden = !teamSession;
+        $("#uploadTeamRecordingBtn").disabled = !teamSession;
+        $("#useLatestRecordingBtn").disabled = false;
         $("#recordingOrb").classList.remove("recording");
         $("#recordingState").textContent = "녹음 완료";
         $("#recordButton").innerHTML = '<span class="record-dot"></span> 다시 녹음';
@@ -1842,6 +2199,41 @@
   });
   $("#recordButton").addEventListener("click", toggleRecording);
   $("#shareRecordingBtn").addEventListener("click", shareRecording);
+  $("#uploadTeamRecordingBtn").addEventListener("click", () => {
+    if (!recordingBlob || !teamSession) return;
+    setTeamPendingAudio(recordingBlob);
+    closeModal($("#recordingModal"));
+    switchView("team");
+    setTimeout(() => $("#teamCertificationForm").scrollIntoView({ behavior: "smooth", block: "center" }), 250);
+    showToast("방금 녹음을 준비했어요. 진도를 고르고 올려 주세요.", "good");
+  });
+  $("#createTeamForm").addEventListener("submit", createTeam);
+  $("#joinTeamForm").addEventListener("submit", joinTeam);
+  $("#teamProgressForm").addEventListener("submit", addTeamProgress);
+  $("#teamCertificationForm").addEventListener("submit", submitTeamCertification);
+  $("#teamProgressFilter").addEventListener("change", (event) => { teamSelectedProgress = event.target.value; renderTeam(); });
+  $("#joinTeamCode").addEventListener("input", (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 8); });
+  $("#teamAudioFile").addEventListener("change", (event) => setTeamPendingAudio(event.target.files[0] || null));
+  $("#useLatestRecordingBtn").addEventListener("click", () => {
+    if (!recordingBlob) return;
+    setTeamPendingAudio(recordingBlob);
+    showToast("방금 녹음한 파일을 선택했어요.", "good");
+  });
+  $("#copyTeamCodeBtn").addEventListener("click", copyTeamCode);
+  $("#shareTeamBtn").addEventListener("click", shareTeamInvite);
+  $("#refreshTeamBtn").addEventListener("click", () => loadTeamDashboard(true));
+  $("#leaveTeamBtn").addEventListener("click", () => {
+    if (!confirm("이 기기에서 그룹 참여 정보를 지울까요? 그룹에 올린 인증은 그대로 남습니다.")) return;
+    saveTeamSession(null);
+    teamData = null;
+    teamSelectedProgress = "";
+    setTeamPendingAudio(null);
+    const url = new URL(location.href);
+    url.searchParams.delete("team");
+    history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    renderTeam();
+    showToast("이 기기의 그룹 참여 정보를 지웠어요.");
+  });
   $("#copyrightBtn").addEventListener("click", () => openModal("#copyrightModal"));
   $("#exportBtn").addEventListener("click", exportBackup);
   $("#backupInput").addEventListener("change", (event) => event.target.files[0] && importBackup(event.target.files[0]));
@@ -1871,4 +2263,5 @@
   loadBibleData();
   checkReminders();
   reminderIntervalId = setInterval(checkReminders, 30000);
+  if (teamInviteCode()) switchView("team");
 })();

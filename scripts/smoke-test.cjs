@@ -18,6 +18,11 @@ const baseUrl = process.argv[2] || "http://127.0.0.1:49189/";
     if (!sourceCount.includes("66권") || !sourceCount.includes("30,991절")) throw new Error(`Unexpected source count: ${sourceCount}`);
 
     await page.locator("#mobileMenuBtn").click();
+    await page.locator('[data-view="team"]').click();
+    if (!(await page.locator("#teamView").isVisible())) throw new Error("The mobile team view did not open.");
+    if (!(await page.locator("#createTeamForm").isVisible()) || !(await page.locator("#joinTeamForm").isVisible())) throw new Error("Team create/join forms are missing.");
+
+    await page.locator("#mobileMenuBtn").click();
     await page.locator('[data-view="bible"]').click();
     if (await page.locator("#bibleBookSelect option").count() !== 66) throw new Error("The whole-Bible selector does not contain 66 books.");
 
@@ -34,7 +39,7 @@ const baseUrl = process.argv[2] || "http://127.0.0.1:49189/";
     if (!(await page.locator("#gameVerseRef").textContent()).includes("에베소서 2:5")) throw new Error("The first selected verse did not open.");
     if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join(" | ")}`);
 
-    console.log("Smoke test passed: 66 books loaded, mobile selector works, and Ephesians 2:5–6 opens as a two-verse game.");
+    console.log("Smoke test passed: 66 books load, the mobile team entry opens, and Ephesians 2:5–6 opens as a two-verse game.");
   } finally {
     await browser.close();
   }
