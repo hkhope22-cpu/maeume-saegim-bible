@@ -71,6 +71,7 @@
   let recordingTimerId = null;
   let recordingBlob = null;
   let recordingUrl = null;
+  let continuousAdvanceTimerId = null;
   let voiceRecognition = null;
   let voiceRecognitionId = 0;
   let voiceListening = false;
@@ -1322,6 +1323,7 @@
 
   function startPlan(plan) {
     if (plan === "core") return ensureCoreVerses(() => startGame(preferredMode, selectedRange, null, coreEntries(), "core"));
+    if (plan === "core-continuous") return ensureCoreVerses(() => startGame("initial", selectedRange, null, coreEntries(), "core-continuous"));
     if (plan === "weekly") return ensureWeeklyVerses(() => startGame(preferredMode, selectedRange, null, weeklyEntries(), "weekly"));
     if (plan === "cumulative") {
       const entries = cumulativeEntries();
@@ -1347,14 +1349,14 @@
     game.selectedTiles = [];
     game.blankWords = [];
     const verse = currentVerse();
-    $("#gameModeLabel").textContent = MODE_NAMES[game.mode];
+    $("#gameModeLabel").textContent = game.sessionType === "core-continuous" ? "이어 암송 · 녹음" : MODE_NAMES[game.mode];
     $("#gameVerseRef").textContent = formatRef(verse.ref);
     $("#gameProgressText").textContent = `${game.index + 1} / ${game.queue.length}`;
     $("#gameProgressBar").style.width = `${(game.index / game.queue.length) * 100}%`;
     $("#gameScore").textContent = game.score;
     $("#gameFeedback").className = "game-feedback";
     $("#gameFeedback").textContent = "";
-    $("#checkAnswerBtn").textContent = "정답 확인";
+    $("#checkAnswerBtn").textContent = game.sessionType === "core-continuous" ? "인식 결과 채점" : "정답 확인";
     $("#hintBtn").style.visibility = "visible";
     $("#hintBtn").disabled = false;
     $("#hintBtn").textContent = game.mode === "blank" ? "한 글자씩 보기" : "전체 구절 보기";
@@ -1485,6 +1487,7 @@
     voiceMismatchAnnounced = false;
     renderVoiceTranscript();
     try { await prepareVoiceAudio(); } catch { /* sound remains optional */ }
+    if (game?.sessionType === "core-continuous" && !await startContinuousRecording()) return;
     const recognition = new Recognition();
     const recognitionId = ++voiceRecognitionId;
     voiceRecognition = recognition;
@@ -1502,7 +1505,7 @@
       renderVoiceTranscript();
     };
     recognition.onresult = (event) => {
-      if (recognitionId !== voiceRecognitionId || !game) return;
+      if (recognitionId !== voiceRecognitionId || !game || game.checked) return;
       let finalText = "";
       let interimText = "";
       for (let index = 0; index < event.results.length; index += 1) {
@@ -1513,6 +1516,18 @@
       voiceFinalTranscript = finalText.trim();
       voiceInterimTranscript = interimText.trim();
       renderVoiceTranscript();
+      if (game.sessionType === "core-continuous" && voiceFinalTranscript) {
+        const grading = gradeRecitation(voiceFinalTranscript, currentVerse().text);
+        if (grading.exact || grading.near) {
+          finishAnswer(grading);
+          clearTimeout(continuousAdvanceTimerId);
+          continuousAdvanceTimerId = setTimeout(() => {
+            nextChallenge();
+            if (game?.sessionType === "core-continuous") toggleVoiceRecognition();
+          }, 650);
+          return;
+        }
+      }
       if (!voiceMismatchAnnounced && confirmedVoiceMismatch()) {
         voiceMismatchAnnounced = true;
         playVoiceMistakeSound();
@@ -1814,6 +1829,8 @@
 
   function endGame() {
     stopVoiceRecognition("");
+    clearTimeout(continuousAdvanceTimerId);
+    if (game?.sessionType === "core-continuous" && mediaRecorder?.state === "recording") mediaRecorder.stop();
     const finalScore = game.score;
     const count = game.queue.length;
     const sessionType = game.sessionType;
@@ -1824,6 +1841,7 @@
     renderAll();
     const nextMessages = {
       core: "핵심 12구절 완료 · 이번 주 새 진도로 이어가세요.",
+      "core-continuous": "핵심 12구절 이어 암송과 녹음이 완료됐어요.",
       weekly: "새 진도 완료 · 이전 말씀 누적 암송으로 이어가세요.",
       cumulative: "누적 암송 완료 · 녹음 인증으로 마무리해 보세요.",
       mistakes: "오답 반복학습을 마쳤어요. 남은 구절을 확인해 보세요.",
@@ -1968,6 +1986,56 @@
     recordingTimerId = null;
   }
 
+  function completeRecording() {
+    recordingBlob = new Blob(recordingChunks, { type: mediaRecorder?.mimeType || "audio/webm" });
+    recordingUrl = URL.createObjectURL(recordingBlob);
+    const preview = $("#recordingPreview");
+    preview.src = recordingUrl;
+    preview.hidden = false;
+    $("#downloadRecording").href = recordingUrl;
+    $("#downloadRecording").download = `암송인증-${todayKey()}.webm`;
+    $("#downloadRecording").classList.remove("disabled");
+    $("#shareRecordingBtn").disabled = !navigator.share;
+    $("#uploadTeamRecordingBtn").hidden = !teamSession;
+    $("#uploadTeamRecordingBtn").disabled = !teamSession;
+    $("#useLatestRecordingBtn").disabled = false;
+    $("#recordingOrb").classList.remove("recording");
+    $("#recordingState").textContent = "녹음 완료";
+    $("#recordButton").innerHTML = '<span class="record-dot"></span> 다시 녹음';
+    stopRecordingTracks();
+    const now = new Date();
+    state.certifications[todayKey()] = { at: now.toISOString(), time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}` };
+    saveState();
+    renderAll();
+    showToast("오늘의 암송 인증을 기록했어요.", "good");
+  }
+
+  async function startContinuousRecording() {
+    if (mediaRecorder?.state === "recording") return true;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      showToast("이 브라우저에서는 녹음을 지원하지 않아요. 최신 크롬을 사용해 주세요.", "warn");
+      return false;
+    }
+    try {
+      resetRecordingResult();
+      recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingChunks = [];
+      mediaRecorder = new MediaRecorder(recordingStream);
+      mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) recordingChunks.push(event.data); });
+      mediaRecorder.addEventListener("stop", completeRecording, { once: true });
+      mediaRecorder.start();
+      recordingStartedAt = Date.now();
+      updateRecordingTimer();
+      recordingTimerId = setInterval(updateRecordingTimer, 500);
+      $("#recordingState").textContent = "이어 암송 녹음 중…";
+      return true;
+    } catch (error) {
+      stopRecordingTracks();
+      showToast(error?.name === "NotAllowedError" ? "마이크 권한을 허용해 주세요." : "마이크를 시작하지 못했어요.", "warn");
+      return false;
+    }
+  }
+
   function updateRecordingTimer() {
     const seconds = Math.floor((Date.now() - recordingStartedAt) / 1000);
     const minutesText = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -1990,30 +2058,7 @@
       recordingChunks = [];
       mediaRecorder = new MediaRecorder(recordingStream);
       mediaRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) recordingChunks.push(event.data); });
-      mediaRecorder.addEventListener("stop", () => {
-        recordingBlob = new Blob(recordingChunks, { type: mediaRecorder.mimeType || "audio/webm" });
-        recordingUrl = URL.createObjectURL(recordingBlob);
-        const preview = $("#recordingPreview");
-        preview.src = recordingUrl;
-        preview.hidden = false;
-        const filename = `암송인증-${todayKey()}.webm`;
-        $("#downloadRecording").href = recordingUrl;
-        $("#downloadRecording").download = filename;
-        $("#downloadRecording").classList.remove("disabled");
-        $("#shareRecordingBtn").disabled = !navigator.share;
-        $("#uploadTeamRecordingBtn").hidden = !teamSession;
-        $("#uploadTeamRecordingBtn").disabled = !teamSession;
-        $("#useLatestRecordingBtn").disabled = false;
-        $("#recordingOrb").classList.remove("recording");
-        $("#recordingState").textContent = "녹음 완료";
-        $("#recordButton").innerHTML = '<span class="record-dot"></span> 다시 녹음';
-        stopRecordingTracks();
-        const now = new Date();
-        state.certifications[todayKey()] = { at: now.toISOString(), time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}` };
-        saveState();
-        renderAll();
-        showToast("오늘의 암송 인증을 기록했어요.", "good");
-      });
+      mediaRecorder.addEventListener("stop", completeRecording, { once: true });
       mediaRecorder.start();
       recordingStartedAt = Date.now();
       updateRecordingTimer();
@@ -2252,7 +2297,10 @@
   $("#voiceGradeBtn").addEventListener("click", gradeVoiceAnswer);
   $("#exitGameBtn").addEventListener("click", () => {
     if (game && (game.index > 0 || game.checked) && !confirm("지금 연습을 나갈까요? 기록된 결과는 그대로 남습니다.")) return;
-    stopVoiceRecognition(""); $("#gameOverlay").classList.remove("open"); $("#gameOverlay").setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; game = null; renderAll();
+    stopVoiceRecognition("");
+    clearTimeout(continuousAdvanceTimerId);
+    if (game?.sessionType === "core-continuous" && mediaRecorder?.state === "recording") mediaRecorder.stop();
+    $("#gameOverlay").classList.remove("open"); $("#gameOverlay").setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; game = null; renderAll();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
