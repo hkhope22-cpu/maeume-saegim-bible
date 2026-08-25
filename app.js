@@ -1369,6 +1369,10 @@
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
   }
 
+  function isMobileBrowser() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+
   function combinedVoiceTranscript() {
     return [voiceFinalTranscript, voiceInterimTranscript].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
   }
@@ -1486,7 +1490,7 @@
     voiceRecognition = recognition;
     recognition.lang = "ko-KR";
     recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.interimResults = !isMobileBrowser();
     recognition.maxAlternatives = 1;
     voiceListening = true;
     setVoiceStatus("마이크를 연결하고 있어요…", "active");
