@@ -14,6 +14,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-local-server
 
 그다음 `http://127.0.0.1:4173`에 접속합니다.
 
+## GitHub와 Vercel 배포
+
+이 저장소는 별도의 서버 코드가 필요 없는 정적 웹사이트입니다. Vercel은 저장소의 `dist/client` 폴더를 그대로 배포하며, `vercel.json`에서 빌드 생략·출력 폴더·크롤러 차단 응답 헤더를 지정합니다. GitHub 저장소와 연결하면 이후 `main` 브랜치에 올라온 변경 사항을 Vercel에서 다시 배포할 수 있습니다.
+
 ## 성경 전체 암송
 
 왼쪽 메뉴의 `성경 전체`에서 다음을 선택할 수 있습니다.
